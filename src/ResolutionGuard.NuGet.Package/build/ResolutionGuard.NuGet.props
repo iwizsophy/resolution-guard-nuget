@@ -1,0 +1,5 @@
+<Project>
+  <PropertyGroup>
+    <ResolutionGuardNuGetEnabled Condition="'$(ResolutionGuardNuGetEnabled)' == ''">false</ResolutionGuardNuGetEnabled>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,50 @@
+name: publish
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Restore
+        run: dotnet restore ResolutionGuard.NuGet.slnx
+
+      - name: Build
+        run: dotnet build ResolutionGuard.NuGet.slnx -c Release --no-restore
+
+      - name: Pack
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          dotnet pack src/ResolutionGuard.NuGet.Package/ResolutionGuard.NuGet.Package.csproj \
+            -c Release \
+            --no-restore \
+            -p:PackageVersion="$VERSION" \
+            -o artifacts
+
+      - name: Authenticate to NuGet.org (Trusted Publishing)
+        id: nuget_login
+        uses: NuGet/login@v1
+
+      - name: Push package
+        run: |
+          dotnet nuget push "artifacts/*.nupkg" \
+            --source "https://api.nuget.org/v3/index.json" \
+            --api-key "${{ steps.nuget_login.outputs.NUGET_API_KEY }}" \
+            --skip-duplicate

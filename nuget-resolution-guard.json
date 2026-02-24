@@ -1,0 +1,16 @@
+{
+  "mode": "warning",
+  "directOnly": false,
+  "runtimeOnly": false,
+  "excludeEntrypoints": [
+    "src/ExperimentalApp/ExperimentalApp.csproj"
+  ],
+  "excludePackageIds": [
+    "Microsoft.NETCore.App",
+    "Microsoft.AspNetCore.App"
+  ],
+  "rules": [
+    { "packageId": "Newtonsoft.Json", "mode": "error" },
+    { "packageId": "Plugin.SDK", "mode": "error", "versions": ["1.2.0", "1.3.0"] }
+  ]
+}
