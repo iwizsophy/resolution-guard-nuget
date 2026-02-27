@@ -1,0 +1,22 @@
+<Project>
+  <UsingTask
+    TaskName="ResolutionGuard.NuGet.Tasks.ResolutionGuardNuGetTask"
+    AssemblyFile="$(MSBuildThisFileDirectory)..\tasks\netstandard2.0\ResolutionGuard.NuGet.Tasks.dll" />
+
+  <Target
+    Name="ResolutionGuardNuGet_Check"
+    AfterTargets="Build"
+    Condition="'$(ResolutionGuardNuGetEnabled)' == 'true' and '$(DesignTimeBuild)' != 'true'">
+
+    <ResolutionGuard.NuGet.Tasks.ResolutionGuardNuGetTask
+      ConfigFile="$(ResolutionGuardNuGetConfigFile)"
+      ModeOverride="$(ResolutionGuardNuGetMode)"
+      DirectOnlyOverride="$(ResolutionGuardNuGetDirectOnly)"
+      RuntimeOnlyOverride="$(ResolutionGuardNuGetRuntimeOnly)"
+      Enabled="$(ResolutionGuardNuGetEnabled)"
+      ExcludedEntrypoints="$(ResolutionGuardNuGetExcludedEntrypoints)"
+      ExcludedPackageIds="$(ResolutionGuardNuGetExcludedPackageIds)"
+      RepositoryRoot="$(ResolutionGuardNuGetRepositoryRoot)"
+      ProjectDirectory="$(MSBuildProjectDirectory)" />
+  </Target>
+</Project>

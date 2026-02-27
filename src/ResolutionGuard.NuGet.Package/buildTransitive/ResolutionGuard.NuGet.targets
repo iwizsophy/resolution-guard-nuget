@@ -1,0 +1,3 @@
+<Project>
+  <Import Project="..\build\ResolutionGuard.NuGet.targets" />
+</Project>

@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ResolutionGuard.NuGet.Core/ResolutionGuard.NuGet.Core.csproj" />
+    <Project Path="src/ResolutionGuard.NuGet.Package/ResolutionGuard.NuGet.Package.csproj" />
+    <Project Path="src/ResolutionGuard.NuGet.Tasks/ResolutionGuard.NuGet.Tasks.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ResolutionGuard.NuGet.Tests/ResolutionGuard.NuGet.Tests.csproj" />
+  </Folder>
+</Solution>

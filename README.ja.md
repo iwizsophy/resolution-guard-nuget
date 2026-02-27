@@ -1,6 +1,6 @@
 # ResolutionGuard.NuGet
 
-![ResolutionGuard.NuGet アイコン](assets/icon.png)
+![ResolutionGuard.NuGet アイコン](https://raw.githubusercontent.com/iwizsophy/resolution-guard-nuget/develop/assets/icon.png)
 
 `ResolutionGuard.NuGet` は、Restore 後の `obj/project.assets.json` を解析し、プロジェクト間で発生する NuGet パッケージバージョン不一致を検出する MSBuild Task パッケージです。
 
@@ -8,6 +8,11 @@
 
 - NuGet の依存関係解決を補助する非公式ツールです。
 - Microsoft および NuGet とは提携・関係がありません。
+
+## プロジェクト方針
+
+このプロジェクトは、実践的なコラボレーションと敬意ある技術的な議論を重視します。
+コントリビュートは歓迎しますが、最終判断はメンテナーが行います。
 
 ## 背景
 
@@ -115,11 +120,16 @@ MSBuild プロパティで上書きできます。
 
 - 英語版ユーザーガイド: `README.md`
 - コントリビュートガイド: `CONTRIBUTING.ja.md`
+- 行動規範: `CODE_OF_CONDUCT.md`
 - 開発者向けガイド: `docs/development.ja.md`
 - Trusted Publishing ガイド: `docs/trusted-publishing.ja.md`
+- セキュリティポリシー: `SECURITY.md`
+- サポートポリシー: `.github/SUPPORT.md`
+- 変更履歴: `CHANGELOG.md`
 
 ## ライセンス
 
 - 本プロジェクトは MIT License の下で提供されています。
 - ライセンス全文は `LICENSE` を参照してください。
 - 法的な解釈・効力は `LICENSE` の英語原文に従います。
+- サードパーティ ライセンス情報は `THIRD-PARTY-NOTICES.md` を参照してください。
