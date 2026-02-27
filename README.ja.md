@@ -1,6 +1,6 @@
 # ResolutionGuard.NuGet
 
-![ResolutionGuard.NuGet アイコン](assets/icon.png)
+![ResolutionGuard.NuGet アイコン](https://raw.githubusercontent.com/iwizsophy/resolution-guard-nuget/develop/assets/icon.png)
 
 `ResolutionGuard.NuGet` は、Restore 後の `obj/project.assets.json` を解析し、プロジェクト間で発生する NuGet パッケージバージョン不一致を検出する MSBuild Task パッケージです。
 

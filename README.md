@@ -1,6 +1,6 @@
 # ResolutionGuard.NuGet
 
-![ResolutionGuard.NuGet Icon](assets/icon.png)
+![ResolutionGuard.NuGet Icon](https://raw.githubusercontent.com/iwizsophy/resolution-guard-nuget/develop/assets/icon.png)
 
 Japanese README: [README.ja.md](README.ja.md)
 
