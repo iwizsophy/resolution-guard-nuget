@@ -11,5 +11,5 @@
 7. Package and assembly versions are resolved from git tags by `RelaxVersioner`.
 
 The workflow authenticates via `NuGet/login@v1` and pushes with a short-lived API key output.
-- `main` uses default trusted publishing settings.
-- `develop` uses `audience=https://apiint.nugettest.org` and `token-service-url=https://apiint.nugettest.org/v2.0/package/create-verification-key`.
+- `main` uses `audience=https://www.nuget.org` and `token-service-url=https://www.nuget.org/api/v2/token`.
+- `develop` uses `audience=https://apiint.nugettest.org` and `token-service-url=https://apiint.nugettest.org/api/v2/token`.

@@ -11,5 +11,5 @@
 7. パッケージ/アセンブリ バージョンは `RelaxVersioner` により git タグから解決されます。
 
 このワークフローは `NuGet/login@v1` で認証し、短命の API キー出力を使って push します。
-- `main` 系は既定の Trusted Publishing 設定を使用します。
-- `develop` 系は `audience=https://apiint.nugettest.org` と `token-service-url=https://apiint.nugettest.org/v2.0/package/create-verification-key` を使用します。
+- `main` 系は `audience=https://www.nuget.org` と `token-service-url=https://www.nuget.org/api/v2/token` を使用します。
+- `develop` 系は `audience=https://apiint.nugettest.org` と `token-service-url=https://apiint.nugettest.org/api/v2/token` を使用します。
