@@ -7,7 +7,6 @@
     <IsPackable>true</IsPackable>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <PackageId>ResolutionGuard.NuGet</PackageId>
-    <Version>0.1.0</Version>
     <Authors>Tetsuji Kato</Authors>
     <Description>MSBuild task package that detects NuGet package-version mismatches across restored project.assets.json files.</Description>
     <PackageTags>nuget;msbuild;restore;dependency-management</PackageTags>

@@ -3,7 +3,8 @@ name: publish
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
+  workflow_dispatch:
 
 jobs:
   publish:
@@ -15,6 +16,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -23,28 +27,80 @@ jobs:
             8.0.x
             10.0.x
 
+      - name: Fetch target branches
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin \
+            +refs/heads/main:refs/remotes/origin/main \
+            +refs/heads/develop:refs/remotes/origin/develop
+
       - name: Restore
         run: dotnet restore ResolutionGuard.NuGet.slnx
 
       - name: Build
         run: dotnet build ResolutionGuard.NuGet.slnx -c Release --no-restore
 
+      - name: Determine publish settings
+        id: publish_settings
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TAG_NAME="${GITHUB_REF_NAME}"
+          EXPECTED_VERSION="${TAG_NAME#v}"
+          TAG_COMMIT="$(git rev-list -n 1 "${TAG_NAME}")"
+
+          if git merge-base --is-ancestor "${TAG_COMMIT}" "origin/main"; then
+            SOURCE="https://api.nuget.org/v3/index.json"
+            AUDIENCE="api://AzureADTokenExchange"
+            TOKEN_SERVICE_URL="https://api.nuget.org/v2.0/package/create-verification-key"
+            TARGET="nuget.org"
+          elif git merge-base --is-ancestor "${TAG_COMMIT}" "origin/develop"; then
+            SOURCE="https://apiint.nugettest.org/v3/index.json"
+            AUDIENCE="https://apiint.nugettest.org"
+            TOKEN_SERVICE_URL="https://apiint.nugettest.org/v2.0/package/create-verification-key"
+            TARGET="nugettest.org"
+          else
+            echo "Tag commit ${TAG_COMMIT} is not contained in main/develop." >&2
+            exit 1
+          fi
+
+          echo "expected_version=${EXPECTED_VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "source=${SOURCE}" >> "${GITHUB_OUTPUT}"
+          echo "audience=${AUDIENCE}" >> "${GITHUB_OUTPUT}"
+          echo "token_service_url=${TOKEN_SERVICE_URL}" >> "${GITHUB_OUTPUT}"
+          echo "target=${TARGET}" >> "${GITHUB_OUTPUT}"
+
       - name: Pack
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
           dotnet pack src/ResolutionGuard.NuGet.Package/ResolutionGuard.NuGet.Package.csproj \
             -c Release \
             --no-restore \
-            -p:PackageVersion="$VERSION" \
             -o artifacts
 
-      - name: Authenticate to NuGet.org (Trusted Publishing)
+      - name: Verify version resolved from tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="${{ steps.publish_settings.outputs.expected_version }}"
+          package_path="artifacts/ResolutionGuard.NuGet.${expected}.nupkg"
+          if [[ ! -f "${package_path}" ]]; then
+            echo "Expected package not found: ${package_path}" >&2
+            ls -la artifacts >&2 || true
+            exit 1
+          fi
+
+      - name: Authenticate to publish target (Trusted Publishing)
         id: nuget_login
         uses: NuGet/login@v1
+        with:
+          audience: ${{ steps.publish_settings.outputs.audience }}
+          token-service-url: ${{ steps.publish_settings.outputs.token_service_url }}
 
       - name: Push package
         run: |
           dotnet nuget push "artifacts/*.nupkg" \
-            --source "https://api.nuget.org/v3/index.json" \
+            --source "${{ steps.publish_settings.outputs.source }}" \
             --api-key "${{ steps.nuget_login.outputs.NUGET_API_KEY }}" \
             --skip-duplicate
