@@ -1,0 +1,60 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <IsPackable>true</IsPackable>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <PackageId>ResolutionGuard.NuGet</PackageId>
+    <Authors>Tetsuji Kato</Authors>
+    <Description>MSBuild task package that detects NuGet package-version mismatches across restored project.assets.json files.</Description>
+    <PackageTags>nuget;msbuild;restore;dependency-management</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryType>git</RepositoryType>
+    <RepositoryUrl>https://github.com/iwizsophy/resolution-guard-nuget</RepositoryUrl>
+    <NoWarn>$(NoWarn);NU5128;NU5100</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="build\ResolutionGuard.NuGet.props" Pack="true" PackagePath="build/" />
+    <None Include="build\ResolutionGuard.NuGet.targets" Pack="true" PackagePath="build/" />
+    <None Include="buildTransitive\ResolutionGuard.NuGet.props" Pack="true" PackagePath="buildTransitive/" />
+    <None Include="buildTransitive\ResolutionGuard.NuGet.targets" Pack="true" PackagePath="buildTransitive/" />
+
+    <None Include="..\..\README.md" Link="README.md" Pack="true" PackagePath="README.md" />
+    <None Include="..\..\assets\icon.png" Link="icon.png" Pack="true" PackagePath="\" />
+    <None Include="..\..\assets\icon.png" Link="assets\icon.png" Pack="true" PackagePath="assets/" />
+    <None Include="..\..\nuget-resolution-guard.schema.json" Link="nuget-resolution-guard.schema.json" Pack="true" PackagePath="contentFiles/any/any/" />
+  </ItemGroup>
+
+  <Target Name="BuildTaskProject" BeforeTargets="AddTaskAssembliesToPackage">
+    <MSBuild
+      Projects="..\ResolutionGuard.NuGet.Tasks\ResolutionGuard.NuGet.Tasks.csproj"
+      Targets="Build"
+      Properties="Configuration=$(Configuration);ContinuousIntegrationBuild=true;DeterministicSourcePaths=true" />
+  </Target>
+
+  <Target Name="AddTaskAssembliesToPackage" DependsOnTargets="BuildTaskProject">
+    <ItemGroup>
+      <TfmSpecificPackageFile Include="..\ResolutionGuard.NuGet.Tasks\bin\$(Configuration)\netstandard2.0\ResolutionGuard.NuGet.Tasks.dll">
+        <PackagePath>tasks/netstandard2.0/</PackagePath>
+      </TfmSpecificPackageFile>
+      <TfmSpecificPackageFile Include="..\ResolutionGuard.NuGet.Tasks\bin\$(Configuration)\netstandard2.0\ResolutionGuard.NuGet.Core.dll">
+        <PackagePath>tasks/netstandard2.0/</PackagePath>
+      </TfmSpecificPackageFile>
+      <TfmSpecificPackageFile Include="..\ResolutionGuard.NuGet.Tasks\bin\$(Configuration)\netstandard2.0\ResolutionGuard.NuGet.Tasks.pdb" Condition="Exists('..\ResolutionGuard.NuGet.Tasks\bin\$(Configuration)\netstandard2.0\ResolutionGuard.NuGet.Tasks.pdb')">
+        <PackagePath>tasks/netstandard2.0/</PackagePath>
+      </TfmSpecificPackageFile>
+      <TfmSpecificPackageFile Include="..\ResolutionGuard.NuGet.Tasks\bin\$(Configuration)\netstandard2.0\ResolutionGuard.NuGet.Core.pdb" Condition="Exists('..\ResolutionGuard.NuGet.Tasks\bin\$(Configuration)\netstandard2.0\ResolutionGuard.NuGet.Core.pdb')">
+        <PackagePath>tasks/netstandard2.0/</PackagePath>
+      </TfmSpecificPackageFile>
+    </ItemGroup>
+  </Target>
+
+  <PropertyGroup>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);AddTaskAssembliesToPackage</TargetsForTfmSpecificContentInPackage>
+  </PropertyGroup>
+</Project>
