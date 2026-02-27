@@ -4,6 +4,8 @@ public sealed class GuardConfigFile
 {
     public string? Mode { get; set; }
 
+    public string? Scope { get; set; }
+
     public bool? DirectOnly { get; set; }
 
     public bool? RuntimeOnly { get; set; }

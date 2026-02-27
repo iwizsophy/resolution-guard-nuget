@@ -9,5 +9,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\ResolutionGuard.NuGet.Core\ResolutionGuard.NuGet.Core.csproj" />
+    <ProjectReference Include="..\..\src\ResolutionGuard.NuGet.Tasks\ResolutionGuard.NuGet.Tasks.csproj" />
   </ItemGroup>
 </Project>

@@ -4,7 +4,25 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
-## [1.0.0] - Planned
+## [1.1.0] - Planned
+
+### Added
+
+- Opt-in `solution` scope to limit analysis to projects listed in a `.sln` or `.slnx`, with automatic fallback to repository scope when no solution file is available.
+
+### Changed
+
+- _None_
+
+### Fixed
+
+- _None_
+
+### Removed
+
+- _None_
+
+## [1.0.0] - Released
 
 ### Added
 
@@ -26,4 +44,5 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 
 - _None_
 
+[1.1.0]: https://github.com/iwizsophy/resolution-guard-nuget/releases/tag/v1.1.0
 [1.0.0]: https://github.com/iwizsophy/resolution-guard-nuget/releases/tag/v1.0.0

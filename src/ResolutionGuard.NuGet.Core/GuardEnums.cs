@@ -7,3 +7,9 @@ public enum GuardMode
     Warning,
     Error,
 }
+
+public enum GuardScope
+{
+    Repository,
+    Solution,
+}
