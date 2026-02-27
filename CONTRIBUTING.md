@@ -6,6 +6,7 @@ Thanks for your interest in contributing to ResolutionGuard.NuGet.
 
 - Open an issue for bug reports or feature proposals.
 - Keep changes focused and small when possible.
+- While discussion and contributions are welcome, final decisions are made by the maintainers.
 
 ## Development workflow
 
@@ -24,3 +25,5 @@ Thanks for your interest in contributing to ResolutionGuard.NuGet.
 
 - Development details: `docs/development.md`
 - NuGet.org Trusted Publishing: `docs/trusted-publishing.md`
+- Code of Conduct: `CODE_OF_CONDUCT.md`
+- Support policy: `.github/SUPPORT.md`

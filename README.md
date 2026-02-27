@@ -2,12 +2,19 @@
 
 ![ResolutionGuard.NuGet Icon](assets/icon.png)
 
+Japanese README: [README.ja.md](README.ja.md)
+
 `ResolutionGuard.NuGet` is an MSBuild Task package that inspects restored `obj/project.assets.json` files and reports NuGet package-version mismatches across projects.
 
 ## Disclaimer
 
 - Unofficial tool for managing NuGet dependency resolution.
 - Not affiliated with Microsoft or NuGet.
+
+## Project Philosophy
+
+This project focuses on practical collaboration and respectful technical discussion.
+Contributions are welcome, while final decisions remain with the maintainers.
 
 ## Why
 
@@ -113,10 +120,15 @@ Notes:
 
 - Japanese user guide: `README.ja.md`
 - Contributing guide: `CONTRIBUTING.md`
+- Code of Conduct: `CODE_OF_CONDUCT.md`
 - Development guide: `docs/development.md`
 - Trusted Publishing guide: `docs/trusted-publishing.md`
+- Security policy: `SECURITY.md`
+- Support policy: `.github/SUPPORT.md`
+- Changelog: `CHANGELOG.md`
 
 ## License
 
 - This project is licensed under the MIT License. See `LICENSE` for the full license text.
 - Japanese license translation is available in `LICENSE.ja.md`.
+- Third-party license notices are listed in `THIRD-PARTY-NOTICES.md`.

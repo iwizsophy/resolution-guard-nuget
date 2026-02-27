@@ -6,6 +6,7 @@ ResolutionGuard.NuGet への貢献を歓迎します。
 
 - バグ報告や機能提案は、まず Issue を作成してください。
 - 変更は可能な限り小さく、目的を明確にしてください。
+- 議論やコントリビュートは歓迎しますが、最終判断はメンテナーが行います。
 
 ## 開発フロー
 
@@ -24,3 +25,5 @@ ResolutionGuard.NuGet への貢献を歓迎します。
 
 - 開発詳細: `docs/development.ja.md`
 - NuGet.org Trusted Publishing: `docs/trusted-publishing.ja.md`
+- 行動規範: `CODE_OF_CONDUCT.md`
+- サポートポリシー: `.github/SUPPORT.md`
