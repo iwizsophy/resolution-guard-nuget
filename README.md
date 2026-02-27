@@ -24,7 +24,7 @@ NuGet dependency resolution is performed per entry project. A solution can silen
 
 - This package **modifies build behavior** via `.props/.targets`.
 - The task runs `AfterTargets="Build"` when enabled.
-- The task only reads local files (`**/obj/project.assets.json`, optional `nuget-resolution-guard.json`).
+- The task only reads local files (`**/obj/project.assets.json`, optional `nuget-resolution-guard.json`, optional `.sln`/`.slnx`).
 - The task does **not** execute external commands and does **not** perform network calls.
 - Default behavior is opt-in: `ResolutionGuardNuGetEnabled=false` unless explicitly enabled.
 
@@ -72,6 +72,7 @@ Example:
 ```json
 {
   "mode": "warning",
+  "scope": "repository",
   "directOnly": false,
   "runtimeOnly": false,
   "excludeEntrypoints": [
@@ -91,20 +92,24 @@ Example:
 Notes:
 
 - By default, all discovered projects and package IDs are analyzed.
+- `scope` is optional (`repository` by default). Set `solution` to limit analysis to projects listed in the current solution file.
 - `directOnly` is optional (`false` by default). When `true`, only directly referenced packages are analyzed.
 - `runtimeOnly` is optional (`false` by default). When `true`, only packages with runtime assets are analyzed.
 - `excludeEntrypoints` is an entry-project exclude-list (blacklist).
 - `excludePackageIds` is package exclude-list (blacklist).
 - `rules[].mode` overrides the global `mode` for that package ID.
 - `rules[].versions` is optional. Listed versions are treated as allowed, and any other resolved version follows `rules[].mode`.
+- When `scope=solution`, the task uses `$(SolutionPath)` by default. If no solution file is available, it logs a warning and falls back to `repository`.
 
 ## MSBuild properties
 
 - `ResolutionGuardNuGetEnabled` (`true|false`)
 - `ResolutionGuardNuGetConfigFile`
 - `ResolutionGuardNuGetMode` (`off|info|warning|error`)
+- `ResolutionGuardNuGetScope` (`repository|solution`)
 - `ResolutionGuardNuGetDirectOnly` (`true|false`)
 - `ResolutionGuardNuGetRuntimeOnly` (`true|false`)
+- `ResolutionGuardNuGetSolutionFile` (`.sln` / `.slnx` path override)
 - `ResolutionGuardNuGetExcludedEntrypoints` (`;` separated csproj paths to exclude)
 - `ResolutionGuardNuGetExcludedPackageIds` (`;` separated package ids to exclude)
 - `ResolutionGuardNuGetRepositoryRoot` (search root override)

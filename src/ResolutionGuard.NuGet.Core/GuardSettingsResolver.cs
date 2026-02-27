@@ -15,7 +15,9 @@ public static class GuardSettingsResolver
         string? runtimeOnlyOverride,
         string? enabledOverride,
         string? excludedEntrypointsOverride,
-        string? excludedPackageIdsOverride)
+        string? excludedPackageIdsOverride,
+        string? scopeOverride = null,
+        string? solutionFileOverride = null)
     {
         List<string> diagnostics = [];
 
@@ -27,9 +29,12 @@ public static class GuardSettingsResolver
 
         bool enabled = false;
         GuardMode mode = GuardMode.Warning;
+        GuardScope scope = GuardScope.Repository;
         bool directOnly = false;
         bool runtimeOnly = false;
 
+        string? solutionFilePath = null;
+        HashSet<string> includedEntrypoints = new(GuardPathComparer.StringComparer);
         HashSet<string> excludedPackageIds = new(GuardPathComparer.StringComparer);
         Dictionary<string, GuardRule> rules = new(GuardPathComparer.StringComparer);
         HashSet<string> excludedEntrypoints = new(GuardPathComparer.StringComparer);
@@ -43,6 +48,15 @@ public static class GuardSettingsResolver
             else if (!string.IsNullOrWhiteSpace(configFile.Mode))
             {
                 diagnostics.Add($"ResolutionGuard.NuGet: Unknown mode '{configFile.Mode}' in {configFilePath}. Falling back to '{mode}'.");
+            }
+
+            if (TryParseScope(configFile.Scope, out GuardScope configScope))
+            {
+                scope = configScope;
+            }
+            else if (!string.IsNullOrWhiteSpace(configFile.Scope))
+            {
+                diagnostics.Add($"ResolutionGuard.NuGet: Unknown scope '{configFile.Scope}' in {configFilePath}. Falling back to '{scope.ToString().ToLowerInvariant()}'.");
             }
 
             if (configFile.DirectOnly.HasValue)
@@ -135,6 +149,52 @@ public static class GuardSettingsResolver
             diagnostics.Add($"ResolutionGuard.NuGet: Unknown runtimeOnly override '{runtimeOnlyOverride}'. Using '{runtimeOnly}'.");
         }
 
+        if (TryParseScope(scopeOverride, out GuardScope scopeOverrideValue))
+        {
+            scope = scopeOverrideValue;
+        }
+        else if (!string.IsNullOrWhiteSpace(scopeOverride))
+        {
+            diagnostics.Add($"ResolutionGuard.NuGet: Unknown scope override '{scopeOverride}'. Using '{scope.ToString().ToLowerInvariant()}'.");
+        }
+
+        solutionFilePath = TryResolvePath(solutionFileOverride, normalizedProjectDirectory);
+
+        if (scope == GuardScope.Solution)
+        {
+            if (string.IsNullOrWhiteSpace(solutionFilePath))
+            {
+                diagnostics.Add("ResolutionGuard.NuGet: scope 'solution' requested but no solution file was provided. Falling back to repository scope.");
+                scope = GuardScope.Repository;
+            }
+            else if (!File.Exists(solutionFilePath))
+            {
+                diagnostics.Add($"ResolutionGuard.NuGet: solution file '{solutionFilePath}' does not exist. Falling back to repository scope.");
+                scope = GuardScope.Repository;
+                solutionFilePath = null;
+            }
+            else
+            {
+                string resolvedSolutionFilePath = solutionFilePath!;
+                if (!SolutionFileReader.TryRead(resolvedSolutionFilePath, out ISet<string>? includedProjects, out string? solutionDiagnostic)
+                    || includedProjects is null)
+                {
+                    if (!string.IsNullOrWhiteSpace(solutionDiagnostic))
+                    {
+                        diagnostics.Add(solutionDiagnostic!);
+                    }
+
+                    diagnostics.Add("ResolutionGuard.NuGet: solution scope could not be resolved. Falling back to repository scope.");
+                    scope = GuardScope.Repository;
+                    solutionFilePath = null;
+                }
+                else
+                {
+                    includedEntrypoints = new HashSet<string>(includedProjects, GuardPathComparer.StringComparer);
+                }
+            }
+        }
+
         if (!string.IsNullOrWhiteSpace(excludedEntrypointsOverride))
         {
             excludedEntrypoints.Clear();
@@ -161,11 +221,14 @@ public static class GuardSettingsResolver
         {
             Enabled = enabled,
             Mode = mode,
+            Scope = scope,
             DirectOnly = directOnly,
             RuntimeOnly = runtimeOnly,
             RepositoryRoot = repositoryRoot,
             ProjectDirectory = normalizedProjectDirectory,
             ConfigFilePath = configFilePath,
+            SolutionFilePath = scope == GuardScope.Solution ? solutionFilePath : null,
+            IncludedEntrypoints = includedEntrypoints,
             ExcludedEntrypoints = excludedEntrypoints,
             ExcludedPackageIds = excludedPackageIds,
             Rules = rules,
@@ -274,6 +337,24 @@ public static class GuardSettingsResolver
             "info" => Assign(GuardMode.Info, out mode),
             "warning" => Assign(GuardMode.Warning, out mode),
             "error" => Assign(GuardMode.Error, out mode),
+            _ => false,
+        };
+    }
+
+    private static bool TryParseScope(string? value, out GuardScope scope)
+    {
+        scope = GuardScope.Repository;
+        string normalizedInput = value ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(normalizedInput))
+        {
+            return false;
+        }
+
+        string normalized = normalizedInput.Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            "repository" => Assign(GuardScope.Repository, out scope),
+            "solution" => Assign(GuardScope.Solution, out scope),
             _ => false,
         };
     }

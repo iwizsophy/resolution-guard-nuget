@@ -8,6 +8,8 @@ public sealed class GuardSettings
 
     public GuardMode Mode { get; set; }
 
+    public GuardScope Scope { get; set; } = GuardScope.Repository;
+
     public bool DirectOnly { get; set; }
 
     public bool RuntimeOnly { get; set; }
@@ -17,6 +19,10 @@ public sealed class GuardSettings
     public string ProjectDirectory { get; set; } = string.Empty;
 
     public string? ConfigFilePath { get; set; }
+
+    public string? SolutionFilePath { get; set; }
+
+    public ISet<string> IncludedEntrypoints { get; set; } = new HashSet<string>(GuardPathComparer.StringComparer);
 
     public ISet<string> ExcludedEntrypoints { get; set; } = new HashSet<string>(GuardPathComparer.StringComparer);
 

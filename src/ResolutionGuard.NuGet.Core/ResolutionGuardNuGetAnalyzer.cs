@@ -48,6 +48,12 @@ public static class ResolutionGuardNuGetAnalyzer
                 continue;
             }
 
+            if (settings.Scope == GuardScope.Solution
+                && !settings.IncludedEntrypoints.Contains(document.ProjectPath))
+            {
+                continue;
+            }
+
             if (settings.ExcludedEntrypoints.Contains(document.ProjectPath))
             {
                 continue;

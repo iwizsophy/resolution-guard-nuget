@@ -1,5 +1,6 @@
 <Project>
   <PropertyGroup>
     <ResolutionGuardNuGetEnabled Condition="'$(ResolutionGuardNuGetEnabled)' == ''">false</ResolutionGuardNuGetEnabled>
+    <ResolutionGuardNuGetSolutionFile Condition="'$(ResolutionGuardNuGetSolutionFile)' == '' and '$(SolutionPath)' != ''">$(SolutionPath)</ResolutionGuardNuGetSolutionFile>
   </PropertyGroup>
 </Project>

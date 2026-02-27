@@ -14,7 +14,11 @@ public sealed class ResolutionGuardNuGetTask : Microsoft.Build.Utilities.Task
 
     public string? RuntimeOnlyOverride { get; set; }
 
+    public string? ScopeOverride { get; set; }
+
     public string? Enabled { get; set; }
+
+    public string? SolutionFile { get; set; }
 
     public string? ExcludedEntrypoints { get; set; }
 
@@ -34,7 +38,9 @@ public sealed class ResolutionGuardNuGetTask : Microsoft.Build.Utilities.Task
             modeOverride: ModeOverride,
             directOnlyOverride: DirectOnlyOverride,
             runtimeOnlyOverride: RuntimeOnlyOverride,
+            scopeOverride: ScopeOverride,
             enabledOverride: Enabled,
+            solutionFileOverride: SolutionFile,
             excludedEntrypointsOverride: ExcludedEntrypoints,
             excludedPackageIdsOverride: ExcludedPackageIds);
 
