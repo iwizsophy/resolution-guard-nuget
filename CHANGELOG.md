@@ -9,6 +9,7 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 ### Added
 
 - Opt-in `solution` scope to limit analysis to projects listed in a `.sln` or `.slnx`, with automatic fallback to repository scope when no solution file is available.
+- Opt-in `ResolutionGuardNuGetEmitSuccessMessage` MSBuild property to emit a visible success message when analysis completes with no mismatch.
 
 ### Changed
 

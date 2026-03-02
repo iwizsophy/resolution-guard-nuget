@@ -104,6 +104,7 @@ Notes:
 ## MSBuild properties
 
 - `ResolutionGuardNuGetEnabled` (`true|false`)
+- `ResolutionGuardNuGetEmitSuccessMessage` (`true|false`, default `false`; when `true`, logs a success message if no mismatch is found)
 - `ResolutionGuardNuGetConfigFile`
 - `ResolutionGuardNuGetMode` (`off|info|warning|error`)
 - `ResolutionGuardNuGetScope` (`repository|solution`)
@@ -120,6 +121,7 @@ Notes:
 - `warning`: warning only (`Log.LogWarning`)
 - `info`: message only (`Log.LogMessage`)
 - `off`: no output for that package
+- If `ResolutionGuardNuGetEmitSuccessMessage=true`, a success message is logged when analysis completes with no mismatch.
 
 ## Documentation
 

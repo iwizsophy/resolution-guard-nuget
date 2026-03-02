@@ -10,10 +10,13 @@ var failures = 0;
 
 RunTest("detect mismatch", TestDetectMismatch);
 RunTest("task disabled logs message", TestTaskDisabledLogsMessage);
-RunTest("task no mismatch logs summary", TestTaskNoMismatchLogsSummary);
+RunTest("task no mismatch stays quiet by default", TestTaskNoMismatchStaysQuietByDefault);
+RunTest("task emit success message logs summary", TestTaskEmitSuccessMessageLogsSummary);
+RunTest("task invalid emit success message warns and stays quiet", TestTaskInvalidEmitSuccessMessageWarnsAndStaysQuiet);
 RunTest("task warning mode logs and succeeds", TestTaskWarningModeLogsAndSucceeds);
 RunTest("task error mode logs and fails", TestTaskErrorModeLogsAndFails);
 RunTest("msbuild integration uses solution path default", TestMsBuildIntegrationUsesSolutionPathDefault);
+RunTest("msbuild integration emits success message when enabled", TestMsBuildIntegrationEmitsSuccessMessageWhenEnabled);
 RunTest("analyzer disabled returns empty", TestAnalyzerDisabledReturnsEmpty);
 RunTest("analyzer missing repository root reports diagnostic", TestAnalyzerMissingRepositoryRootReportsDiagnostic);
 RunTest("analyzer parse failure reports diagnostic", TestAnalyzerParseFailureReportsDiagnostic);
@@ -100,7 +103,7 @@ void TestTaskDisabledLogsMessage()
     }
 }
 
-void TestTaskNoMismatchLogsSummary()
+void TestTaskNoMismatchStaysQuietByDefault()
 {
     string root = CreateTempRoot();
     try
@@ -121,9 +124,76 @@ void TestTaskNoMismatchLogsSummary()
 
         Expect(succeeded, "Task should succeed when no mismatches exist.");
         Expect(buildEngine.Errors.Count == 0, "Task should not log errors when no mismatches exist.");
+        Expect(buildEngine.Warnings.Count == 0, "Task should not log warnings when no mismatches exist.");
+        Expect(
+            !buildEngine.Messages.Any(x => x.Contains("no mismatch found", StringComparison.OrdinalIgnoreCase)),
+            "Task should stay quiet by default when no mismatches are found.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestTaskEmitSuccessMessageLogsSummary()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        WriteProjectAssets(root, "src/AppA/AppA.csproj", ("Example.Task.Same", "1.0.0"));
+        WriteProjectAssets(root, "src/AppB/AppB.csproj", ("Example.Task.Same", "1.0.0"));
+
+        RecordingBuildEngine buildEngine = new();
+        ResolutionGuardNuGetTask task = new()
+        {
+            BuildEngine = buildEngine,
+            Enabled = "true",
+            EmitSuccessMessage = "true",
+            RepositoryRoot = root,
+            ProjectDirectory = root,
+        };
+
+        bool succeeded = task.Execute();
+
+        Expect(succeeded, "Task should succeed when no mismatches exist.");
+        Expect(buildEngine.Errors.Count == 0, "Task should not log errors when no mismatches exist.");
         Expect(
             buildEngine.Messages.Any(x => x.Contains("no mismatch found", StringComparison.OrdinalIgnoreCase)),
-            "Task should log a summary when no mismatches are found.");
+            "Task should log a summary when success messages are enabled.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestTaskInvalidEmitSuccessMessageWarnsAndStaysQuiet()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        WriteProjectAssets(root, "src/AppA/AppA.csproj", ("Example.Task.Same", "1.0.0"));
+        WriteProjectAssets(root, "src/AppB/AppB.csproj", ("Example.Task.Same", "1.0.0"));
+
+        RecordingBuildEngine buildEngine = new();
+        ResolutionGuardNuGetTask task = new()
+        {
+            BuildEngine = buildEngine,
+            Enabled = "true",
+            EmitSuccessMessage = "not-a-bool",
+            RepositoryRoot = root,
+            ProjectDirectory = root,
+        };
+
+        bool succeeded = task.Execute();
+
+        Expect(succeeded, "Task should still succeed when emitSuccessMessage is invalid.");
+        Expect(
+            buildEngine.Warnings.Any(x => x.Contains("Unknown emitSuccessMessage value", StringComparison.OrdinalIgnoreCase)),
+            "Invalid emitSuccessMessage should report a warning.");
+        Expect(
+            !buildEngine.Messages.Any(x => x.Contains("no mismatch found", StringComparison.OrdinalIgnoreCase)),
+            "Invalid emitSuccessMessage should not emit a success message.");
     }
     finally
     {
@@ -144,6 +214,7 @@ void TestTaskWarningModeLogsAndSucceeds()
         {
             BuildEngine = buildEngine,
             Enabled = "true",
+            EmitSuccessMessage = "true",
             ModeOverride = "warning",
             RepositoryRoot = root,
             ProjectDirectory = root,
@@ -156,6 +227,9 @@ void TestTaskWarningModeLogsAndSucceeds()
         Expect(
             buildEngine.Warnings.Any(x => x.Contains("ResolutionGuard.NuGet mismatch", StringComparison.OrdinalIgnoreCase)),
             "Warning mode should log a warning mismatch.");
+        Expect(
+            !buildEngine.Messages.Any(x => x.Contains("no mismatch found", StringComparison.OrdinalIgnoreCase)),
+            "Task should not log a success message when mismatches exist.");
     }
     finally
     {
@@ -224,6 +298,31 @@ void TestMsBuildIntegrationUsesSolutionPathDefault()
         Expect(
             File.Exists(fixture.AppBAssetsPath),
             "Out-of-solution project assets should exist so the success case proves solution filtering.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestMsBuildIntegrationEmitsSuccessMessageWhenEnabled()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        MsBuildIntegrationFixture fixture = CreateMsBuildIntegrationFixture(root, initialScope: "solution");
+        SetMsBuildIntegrationEmitSuccessMessage(fixture.AppAProjectPath, "true");
+
+        CommandResult result = RunDotNet(
+            $"build \"{fixture.SolutionFilePath}\" --nologo -v:minimal",
+            root);
+
+        Expect(
+            result.Succeeded,
+            $"Solution-scoped build with success messages enabled should succeed.{Environment.NewLine}{result.Output}");
+        Expect(
+            result.Output.Contains("no mismatch found", StringComparison.OrdinalIgnoreCase),
+            $"Build output should include the success message when ResolutionGuardNuGetEmitSuccessMessage=true.{Environment.NewLine}{result.Output}");
     }
     finally
     {
@@ -1740,6 +1839,16 @@ void SetMsBuildIntegrationScope(string appAProjectPath, string scope)
             StringComparison.Ordinal);
     }
 
+    File.WriteAllText(appAProjectPath, updatedXml);
+}
+
+void SetMsBuildIntegrationEmitSuccessMessage(string appAProjectPath, string value)
+{
+    string projectXml = File.ReadAllText(appAProjectPath);
+    string marker = "<ResolutionGuardNuGetEnabled>true</ResolutionGuardNuGetEnabled>";
+    string inserted = $"{marker}{Environment.NewLine}            <ResolutionGuardNuGetEmitSuccessMessage>{EscapeXml(value)}</ResolutionGuardNuGetEmitSuccessMessage>";
+
+    string updatedXml = projectXml.Replace(marker, inserted, StringComparison.Ordinal);
     File.WriteAllText(appAProjectPath, updatedXml);
 }
 
