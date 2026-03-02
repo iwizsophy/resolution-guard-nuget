@@ -41,7 +41,7 @@ NuGet dependency resolution is performed per entry project. A solution can silen
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="ResolutionGuard.NuGet" Version="0.1.0" PrivateAssets="all" />
+  <PackageReference Include="ResolutionGuard.NuGet" Version="1.1.0" PrivateAssets="all" />
 </ItemGroup>
 ```
 

@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
-## [1.1.0] - Planned
+## [1.1.0] - Released
 
 ### Added
 
@@ -35,7 +35,7 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 ### Changed
 
 - Repository foundations were prepared for the first release, including CI, trusted publishing workflow, and development / release documentation.
-- Package metadata and project configuration were aligned for the planned `1.0.0` release.
+- Package metadata and project configuration were aligned for the `1.0.0` release.
 
 ### Fixed
 
