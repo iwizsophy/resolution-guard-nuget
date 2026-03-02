@@ -3,6 +3,7 @@ using ResolutionGuard.NuGet.Core;
 using ResolutionGuard.NuGet.Tasks;
 using System.Diagnostics;
 using System.Text.Json;
+using System.Xml.Linq;
 
 var CachedJsonSerializerOptions = new JsonSerializerOptions { WriteIndented = true };
 
@@ -1825,31 +1826,35 @@ MsBuildIntegrationFixture CreateMsBuildIntegrationFixture(string root, string in
 
 void SetMsBuildIntegrationScope(string appAProjectPath, string scope)
 {
-    string projectXml = File.ReadAllText(appAProjectPath);
-    string updatedXml = projectXml.Replace(
-        "<ResolutionGuardNuGetScope>repository</ResolutionGuardNuGetScope>",
-        $"<ResolutionGuardNuGetScope>{scope}</ResolutionGuardNuGetScope>",
-        StringComparison.Ordinal);
-
-    if (string.Equals(projectXml, updatedXml, StringComparison.Ordinal))
-    {
-        updatedXml = projectXml.Replace(
-            "<ResolutionGuardNuGetScope>solution</ResolutionGuardNuGetScope>",
-            $"<ResolutionGuardNuGetScope>{scope}</ResolutionGuardNuGetScope>",
-            StringComparison.Ordinal);
-    }
-
-    File.WriteAllText(appAProjectPath, updatedXml);
+    SetMsBuildIntegrationProperty(appAProjectPath, "ResolutionGuardNuGetScope", scope);
 }
 
 void SetMsBuildIntegrationEmitSuccessMessage(string appAProjectPath, string value)
 {
-    string projectXml = File.ReadAllText(appAProjectPath);
-    string marker = "<ResolutionGuardNuGetEnabled>true</ResolutionGuardNuGetEnabled>";
-    string inserted = $"{marker}{Environment.NewLine}            <ResolutionGuardNuGetEmitSuccessMessage>{EscapeXml(value)}</ResolutionGuardNuGetEmitSuccessMessage>";
+    SetMsBuildIntegrationProperty(appAProjectPath, "ResolutionGuardNuGetEmitSuccessMessage", value);
+}
 
-    string updatedXml = projectXml.Replace(marker, inserted, StringComparison.Ordinal);
-    File.WriteAllText(appAProjectPath, updatedXml);
+void SetMsBuildIntegrationProperty(string projectPath, string propertyName, string value)
+{
+    XDocument document = XDocument.Parse(File.ReadAllText(projectPath), LoadOptions.PreserveWhitespace);
+    XElement root = document.Root ?? throw new InvalidOperationException("MSBuild integration fixture project is missing a root element.");
+
+    XNamespace ns = root.Name.Namespace;
+    XName propertyGroupName = ns + "PropertyGroup";
+    XName targetPropertyName = ns + propertyName;
+
+    XElement propertyGroup = root.Elements(propertyGroupName).FirstOrDefault()
+        ?? throw new InvalidOperationException("MSBuild integration fixture project is missing a PropertyGroup element.");
+
+    XElement property = propertyGroup.Element(targetPropertyName) ?? new XElement(targetPropertyName);
+    property.Value = value;
+
+    if (property.Parent is null)
+    {
+        propertyGroup.Add(property);
+    }
+
+    File.WriteAllText(projectPath, document.ToString());
 }
 
 void WriteMsBuildIntegrationProjectFile(
