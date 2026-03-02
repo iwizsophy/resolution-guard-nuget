@@ -104,6 +104,7 @@ MSBuild プロパティで上書きできます。
 ## MSBuild プロパティ
 
 - `ResolutionGuardNuGetEnabled`（`true|false`）
+- `ResolutionGuardNuGetEmitSuccessMessage`（`true|false`、既定 `false`。`true` のとき、不一致がなければ成功メッセージを出力）
 - `ResolutionGuardNuGetConfigFile`
 - `ResolutionGuardNuGetMode`（`off|info|warning|error`）
 - `ResolutionGuardNuGetScope`（`repository|solution`）
@@ -120,6 +121,7 @@ MSBuild プロパティで上書きできます。
 - `warning`: 警告のみ（`Log.LogWarning`）
 - `info`: 情報メッセージのみ（`Log.LogMessage`）
 - `off`: そのパッケージでは出力なし
+- `ResolutionGuardNuGetEmitSuccessMessage=true` の場合、不一致なしで完了したときに成功メッセージを出力します。
 
 ## ドキュメント
 

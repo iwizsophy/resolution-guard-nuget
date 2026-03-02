@@ -15,6 +15,7 @@
       RuntimeOnlyOverride="$(ResolutionGuardNuGetRuntimeOnly)"
       ScopeOverride="$(ResolutionGuardNuGetScope)"
       Enabled="$(ResolutionGuardNuGetEnabled)"
+      EmitSuccessMessage="$(ResolutionGuardNuGetEmitSuccessMessage)"
       SolutionFile="$(ResolutionGuardNuGetSolutionFile)"
       ExcludedEntrypoints="$(ResolutionGuardNuGetExcludedEntrypoints)"
       ExcludedPackageIds="$(ResolutionGuardNuGetExcludedPackageIds)"
