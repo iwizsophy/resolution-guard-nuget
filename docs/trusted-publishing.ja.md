@@ -4,7 +4,7 @@
 2. nuget.org のパッケージ設定で、この GitHub リポジトリとワークフロー（`.github/workflows/publish.yml`）を Trusted Publisher として追加します。
 3. nugettest.org のパッケージ設定でも、同じワークフローを Trusted Publisher として追加します。
 4. `publish.yml` の `permissions.id-token: write` を維持します。
-5. `v1.0.0` のようなバージョンタグを作成して push します。
+5. `v1.2.3` のようなバージョンタグを作成して push します。
 6. 公開先はタグ付与コミットの所属ブランチで決まります。
    - `main` に含まれるコミット: `https://api.nuget.org/v3/index.json`
    - `develop` のみに含まれるコミット: `https://apiint.nugettest.org/v3/index.json`

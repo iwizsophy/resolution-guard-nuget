@@ -9,6 +9,10 @@
       "type": "string",
       "enum": ["off", "info", "warning", "error"]
     },
+    "scope": {
+      "type": "string",
+      "enum": ["repository", "solution"]
+    },
     "directOnly": {
       "type": "boolean"
     },

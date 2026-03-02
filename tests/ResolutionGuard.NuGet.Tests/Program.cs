@@ -1,21 +1,55 @@
+using Microsoft.Build.Framework;
 using ResolutionGuard.NuGet.Core;
+using ResolutionGuard.NuGet.Tasks;
+using System.Diagnostics;
 using System.Text.Json;
+using System.Xml.Linq;
 
 var CachedJsonSerializerOptions = new JsonSerializerOptions { WriteIndented = true };
 
 var failures = 0;
 
 RunTest("detect mismatch", TestDetectMismatch);
+RunTest("task disabled logs message", TestTaskDisabledLogsMessage);
+RunTest("task no mismatch stays quiet by default", TestTaskNoMismatchStaysQuietByDefault);
+RunTest("task emit success message logs summary", TestTaskEmitSuccessMessageLogsSummary);
+RunTest("task invalid emit success message warns and stays quiet", TestTaskInvalidEmitSuccessMessageWarnsAndStaysQuiet);
+RunTest("task warning mode logs and succeeds", TestTaskWarningModeLogsAndSucceeds);
+RunTest("task error mode logs and fails", TestTaskErrorModeLogsAndFails);
+RunTest("msbuild integration uses solution path default", TestMsBuildIntegrationUsesSolutionPathDefault);
+RunTest("msbuild integration emits success message when enabled", TestMsBuildIntegrationEmitsSuccessMessageWhenEnabled);
+RunTest("analyzer disabled returns empty", TestAnalyzerDisabledReturnsEmpty);
+RunTest("analyzer missing repository root reports diagnostic", TestAnalyzerMissingRepositoryRootReportsDiagnostic);
+RunTest("analyzer parse failure reports diagnostic", TestAnalyzerParseFailureReportsDiagnostic);
 RunTest("excluded package ids blacklist", TestExcludedPackageIds);
 RunTest("direct only filters transitive", TestDirectOnlyFiltersTransitive);
 RunTest("runtime only filters non-runtime packages", TestRuntimeOnlyFiltersNonRuntimePackages);
+RunTest("runtime only without targets treats packages as runtime", TestRuntimeOnlyWithoutTargetsTreatsPackagesAsRuntime);
+RunTest("project path fallback infers csproj", TestProjectPathFallbackInfersCsproj);
+RunTest("solution scope filters non-solution projects", TestSolutionScopeFiltersNonSolutionProjects);
 RunTest("excluded entrypoints blacklist", TestExcludedEntrypoints);
+RunTest("rule off suppresses mismatch", TestRuleOffSuppressesMismatch);
 RunTest("rule mode override", TestRuleModeOverride);
 RunTest("rule versions allow listed", TestRuleVersionsAllowListed);
 RunTest("rule versions detect out-of-rule versions", TestRuleVersionsOutOfRule);
+RunTest("resolver solution scope loads slnx projects", TestResolverSolutionScopeLoadsSlnxProjects);
+RunTest("resolver solution scope loads sln projects", TestResolverSolutionScopeLoadsSlnProjects);
+RunTest("resolver solution scope no file falls back", TestResolverSolutionScopeNoFileFallsBack);
+RunTest("resolver solution scope missing file falls back", TestResolverSolutionScopeMissingFileFallsBack);
+RunTest("resolver solution scope unsupported file falls back", TestResolverSolutionScopeUnsupportedFileFallsBack);
+RunTest("resolver solution scope malformed file falls back", TestResolverSolutionScopeMalformedFileFallsBack);
+RunTest("resolver discovers config in parent", TestResolverDiscoversConfigInParent);
+RunTest("resolver discovers git repository root", TestResolverDiscoversGitRepositoryRoot);
 RunTest("resolver exclude package ids", TestResolverExcludePackageIds);
+RunTest("resolver config scope applies", TestResolverConfigScopeApplies);
+RunTest("resolver invalid mode reports diagnostics", TestResolverInvalidModeReportsDiagnostics);
+RunTest("resolver invalid boolean overrides report diagnostics", TestResolverInvalidBooleanOverridesReportDiagnostics);
+RunTest("resolver invalid rule mode reports diagnostic", TestResolverInvalidRuleModeReportsDiagnostic);
+RunTest("resolver invalid config file reports diagnostic", TestResolverInvalidConfigFileReportsDiagnostic);
 RunTest("resolver rule versions", TestResolverRuleVersions);
 RunTest("resolver direct/runtime flags", TestResolverDirectRuntimeFlags);
+RunTest("resolver scope override", TestResolverScopeOverride);
+RunTest("resolver invalid scope reports diagnostics", TestResolverInvalidScopeReportsDiagnostics);
 RunTest("resolver direct/runtime empty overrides keep config", TestResolverDirectRuntimeEmptyOverridesKeepConfig);
 RunTest("resolver mode empty override keeps config", TestResolverModeEmptyOverrideKeepsConfig);
 RunTest("resolver excludes empty overrides keep config", TestResolverExcludesEmptyOverridesKeepConfig);
@@ -43,6 +77,260 @@ void RunTest(string name, Action test)
     }
 }
 
+void TestTaskDisabledLogsMessage()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        RecordingBuildEngine buildEngine = new();
+        ResolutionGuardNuGetTask task = new()
+        {
+            BuildEngine = buildEngine,
+            Enabled = "false",
+            ProjectDirectory = root,
+        };
+
+        bool succeeded = task.Execute();
+
+        Expect(succeeded, "Disabled task should succeed.");
+        Expect(buildEngine.Errors.Count == 0, "Disabled task should not log errors.");
+        Expect(
+            buildEngine.Messages.Any(x => x.Contains("disabled", StringComparison.OrdinalIgnoreCase)),
+            "Disabled task should log a disabled message.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestTaskNoMismatchStaysQuietByDefault()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        WriteProjectAssets(root, "src/AppA/AppA.csproj", ("Example.Task.Same", "1.0.0"));
+        WriteProjectAssets(root, "src/AppB/AppB.csproj", ("Example.Task.Same", "1.0.0"));
+
+        RecordingBuildEngine buildEngine = new();
+        ResolutionGuardNuGetTask task = new()
+        {
+            BuildEngine = buildEngine,
+            Enabled = "true",
+            RepositoryRoot = root,
+            ProjectDirectory = root,
+        };
+
+        bool succeeded = task.Execute();
+
+        Expect(succeeded, "Task should succeed when no mismatches exist.");
+        Expect(buildEngine.Errors.Count == 0, "Task should not log errors when no mismatches exist.");
+        Expect(buildEngine.Warnings.Count == 0, "Task should not log warnings when no mismatches exist.");
+        Expect(
+            !buildEngine.Messages.Any(x => x.Contains("no mismatch found", StringComparison.OrdinalIgnoreCase)),
+            "Task should stay quiet by default when no mismatches are found.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestTaskEmitSuccessMessageLogsSummary()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        WriteProjectAssets(root, "src/AppA/AppA.csproj", ("Example.Task.Same", "1.0.0"));
+        WriteProjectAssets(root, "src/AppB/AppB.csproj", ("Example.Task.Same", "1.0.0"));
+
+        RecordingBuildEngine buildEngine = new();
+        ResolutionGuardNuGetTask task = new()
+        {
+            BuildEngine = buildEngine,
+            Enabled = "true",
+            EmitSuccessMessage = "true",
+            RepositoryRoot = root,
+            ProjectDirectory = root,
+        };
+
+        bool succeeded = task.Execute();
+
+        Expect(succeeded, "Task should succeed when no mismatches exist.");
+        Expect(buildEngine.Errors.Count == 0, "Task should not log errors when no mismatches exist.");
+        Expect(
+            buildEngine.Messages.Any(x => x.Contains("no mismatch found", StringComparison.OrdinalIgnoreCase)),
+            "Task should log a summary when success messages are enabled.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestTaskInvalidEmitSuccessMessageWarnsAndStaysQuiet()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        WriteProjectAssets(root, "src/AppA/AppA.csproj", ("Example.Task.Same", "1.0.0"));
+        WriteProjectAssets(root, "src/AppB/AppB.csproj", ("Example.Task.Same", "1.0.0"));
+
+        RecordingBuildEngine buildEngine = new();
+        ResolutionGuardNuGetTask task = new()
+        {
+            BuildEngine = buildEngine,
+            Enabled = "true",
+            EmitSuccessMessage = "not-a-bool",
+            RepositoryRoot = root,
+            ProjectDirectory = root,
+        };
+
+        bool succeeded = task.Execute();
+
+        Expect(succeeded, "Task should still succeed when emitSuccessMessage is invalid.");
+        Expect(
+            buildEngine.Warnings.Any(x => x.Contains("Unknown emitSuccessMessage value", StringComparison.OrdinalIgnoreCase)),
+            "Invalid emitSuccessMessage should report a warning.");
+        Expect(
+            !buildEngine.Messages.Any(x => x.Contains("no mismatch found", StringComparison.OrdinalIgnoreCase)),
+            "Invalid emitSuccessMessage should not emit a success message.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestTaskWarningModeLogsAndSucceeds()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        WriteProjectAssets(root, "src/AppA/AppA.csproj", ("Example.Task.Warning", "1.0.0"));
+        WriteProjectAssets(root, "src/AppB/AppB.csproj", ("Example.Task.Warning", "2.0.0"));
+
+        RecordingBuildEngine buildEngine = new();
+        ResolutionGuardNuGetTask task = new()
+        {
+            BuildEngine = buildEngine,
+            Enabled = "true",
+            EmitSuccessMessage = "true",
+            ModeOverride = "warning",
+            RepositoryRoot = root,
+            ProjectDirectory = root,
+        };
+
+        bool succeeded = task.Execute();
+
+        Expect(succeeded, "Warning mode should not fail the task.");
+        Expect(buildEngine.Errors.Count == 0, "Warning mode should not log errors.");
+        Expect(
+            buildEngine.Warnings.Any(x => x.Contains("ResolutionGuard.NuGet mismatch", StringComparison.OrdinalIgnoreCase)),
+            "Warning mode should log a warning mismatch.");
+        Expect(
+            !buildEngine.Messages.Any(x => x.Contains("no mismatch found", StringComparison.OrdinalIgnoreCase)),
+            "Task should not log a success message when mismatches exist.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestTaskErrorModeLogsAndFails()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        WriteProjectAssets(root, "src/AppA/AppA.csproj", ("Example.Task.Error", "1.0.0"));
+        WriteProjectAssets(root, "src/AppB/AppB.csproj", ("Example.Task.Error", "2.0.0"));
+
+        RecordingBuildEngine buildEngine = new();
+        ResolutionGuardNuGetTask task = new()
+        {
+            BuildEngine = buildEngine,
+            Enabled = "true",
+            ModeOverride = "error",
+            RepositoryRoot = root,
+            ProjectDirectory = root,
+        };
+
+        bool succeeded = task.Execute();
+
+        Expect(!succeeded, "Error mode should fail the task.");
+        Expect(
+            buildEngine.Errors.Any(x => x.Contains("ResolutionGuard.NuGet mismatch", StringComparison.OrdinalIgnoreCase)),
+            "Error mode should log an error mismatch.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestMsBuildIntegrationUsesSolutionPathDefault()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        MsBuildIntegrationFixture fixture = CreateMsBuildIntegrationFixture(root, initialScope: "repository");
+
+        CommandResult repositoryResult = RunDotNet(
+            $"build \"{fixture.SolutionFilePath}\" --nologo -v:minimal",
+            root);
+
+        Expect(
+            !repositoryResult.Succeeded,
+            $"Repository scope should fail due to an out-of-solution mismatch.{Environment.NewLine}{repositoryResult.Output}");
+        Expect(
+            repositoryResult.Output.Contains("ResolutionGuard.NuGet mismatch", StringComparison.OrdinalIgnoreCase),
+            $"Repository scope build should report a mismatch.{Environment.NewLine}{repositoryResult.Output}");
+
+        SetMsBuildIntegrationScope(fixture.AppAProjectPath, "solution");
+
+        CommandResult solutionResult = RunDotNet(
+            $"build \"{fixture.SolutionFilePath}\" --no-restore --nologo -v:minimal",
+            root);
+
+        Expect(
+            solutionResult.Succeeded,
+            $"Solution scope should succeed when only the solution project is considered.{Environment.NewLine}{solutionResult.Output}");
+        Expect(
+            File.Exists(fixture.AppBAssetsPath),
+            "Out-of-solution project assets should exist so the success case proves solution filtering.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestMsBuildIntegrationEmitsSuccessMessageWhenEnabled()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        MsBuildIntegrationFixture fixture = CreateMsBuildIntegrationFixture(root, initialScope: "solution");
+        SetMsBuildIntegrationEmitSuccessMessage(fixture.AppAProjectPath, "true");
+
+        CommandResult result = RunDotNet(
+            $"build \"{fixture.SolutionFilePath}\" --nologo -v:minimal",
+            root);
+
+        Expect(
+            result.Succeeded,
+            $"Solution-scoped build with success messages enabled should succeed.{Environment.NewLine}{result.Output}");
+        Expect(
+            result.Output.Contains("no mismatch found", StringComparison.OrdinalIgnoreCase),
+            $"Build output should include the success message when ResolutionGuardNuGetEmitSuccessMessage=true.{Environment.NewLine}{result.Output}");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
 void TestDetectMismatch()
 {
     string root = CreateTempRoot();
@@ -64,6 +352,76 @@ void TestDetectMismatch()
         Expect(mismatch.VersionMap.Count == 2, "Expected two versions.");
         Expect(mismatch.VersionMap["1.0.0"].Any(x => x.Path == appA), "AppA not linked to 1.0.0.");
         Expect(mismatch.VersionMap["2.0.0"].Any(x => x.Path == appB), "AppB not linked to 2.0.0.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestAnalyzerDisabledReturnsEmpty()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        GuardSettings settings = CreateSettings(
+            root,
+            mode: GuardMode.Warning);
+        settings.Enabled = false;
+
+        GuardAnalysisResult result = ResolutionGuardNuGetAnalyzer.Analyze(settings);
+
+        Expect(result.Mismatches.Count == 0, "Disabled analyzer should not produce mismatches.");
+        Expect(result.Diagnostics.Count == 0, "Disabled analyzer should not produce diagnostics.");
+        Expect(result.AssetsFileCount == 0, "Disabled analyzer should not scan assets.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestAnalyzerMissingRepositoryRootReportsDiagnostic()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        GuardSettings settings = CreateSettings(
+            Path.Combine(root, "missing"),
+            mode: GuardMode.Warning);
+
+        GuardAnalysisResult result = ResolutionGuardNuGetAnalyzer.Analyze(settings);
+
+        Expect(result.Mismatches.Count == 0, "Missing repository root should not produce mismatches.");
+        Expect(
+            result.Diagnostics.Any(x => x.Contains("does not exist", StringComparison.OrdinalIgnoreCase)),
+            "Missing repository root should produce a diagnostic.");
+        Expect(result.AssetsFileCount == 0, "Missing repository root should not scan assets.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestAnalyzerParseFailureReportsDiagnostic()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        WriteRawProjectAssets(root, "src/AppA/AppA.csproj", "{ invalid json");
+
+        GuardSettings settings = CreateSettings(
+            root,
+            mode: GuardMode.Warning);
+
+        GuardAnalysisResult result = ResolutionGuardNuGetAnalyzer.Analyze(settings);
+
+        Expect(result.Mismatches.Count == 0, "Parse failure should not produce mismatches.");
+        Expect(result.AssetsFileCount == 1, "Invalid assets file should still be counted.");
+        Expect(
+            result.Diagnostics.Any(x => x.Contains("Failed to parse", StringComparison.OrdinalIgnoreCase)),
+            "Parse failure should produce a diagnostic.");
     }
     finally
     {
@@ -158,6 +516,121 @@ void TestRuntimeOnlyFiltersNonRuntimePackages()
 
         GuardAnalysisResult allResult = ResolutionGuardNuGetAnalyzer.Analyze(allSettings);
         Expect(allResult.Mismatches.Count == 1, "Without runtimeOnly, non-runtime package mismatch should be detected.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestRuntimeOnlyWithoutTargetsTreatsPackagesAsRuntime()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        WriteProjectAssetsDetailedWithOptions(
+            root,
+            "src/AppA/AppA.csproj",
+            includeTargets: false,
+            includeRestoreProjectPath: true,
+            ("NoTargets.Package", "1.0.0", true, true));
+        WriteProjectAssetsDetailedWithOptions(
+            root,
+            "src/AppB/AppB.csproj",
+            includeTargets: false,
+            includeRestoreProjectPath: true,
+            ("NoTargets.Package", "2.0.0", true, true));
+
+        GuardSettings settings = CreateSettings(
+            root,
+            mode: GuardMode.Error,
+            runtimeOnly: true);
+
+        GuardAnalysisResult result = ResolutionGuardNuGetAnalyzer.Analyze(settings);
+        Expect(result.Mismatches.Count == 1, "Missing targets should be treated as runtime-inclusive.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestProjectPathFallbackInfersCsproj()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        string appA = WriteProjectAssetsDetailedWithOptions(
+            root,
+            "src/AppA/AppA.csproj",
+            includeTargets: true,
+            includeRestoreProjectPath: false,
+            ("Fallback.Package", "1.0.0", true, true));
+        string appB = WriteProjectAssetsDetailedWithOptions(
+            root,
+            "src/AppB/AppB.csproj",
+            includeTargets: true,
+            includeRestoreProjectPath: false,
+            ("Fallback.Package", "2.0.0", true, true));
+
+        GuardSettings settings = CreateSettings(
+            root,
+            mode: GuardMode.Error);
+
+        GuardAnalysisResult result = ResolutionGuardNuGetAnalyzer.Analyze(settings);
+
+        Expect(result.Mismatches.Count == 1, "Fallback project-path resolution should still produce a mismatch.");
+        PackageMismatch mismatch = result.Mismatches[0];
+        Expect(mismatch.VersionMap["1.0.0"].Any(x => x.Path == appA), "Fallback should infer AppA.csproj.");
+        Expect(mismatch.VersionMap["2.0.0"].Any(x => x.Path == appB), "Fallback should infer AppB.csproj.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestSolutionScopeFiltersNonSolutionProjects()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        string appA = WriteProjectAssets(root, "src/AppA/AppA.csproj", ("Example.Scope", "1.0.0"));
+        WriteProjectAssets(root, "src/AppB/AppB.csproj", ("Example.Scope", "2.0.0"));
+
+        GuardSettings settings = CreateSettings(
+            root,
+            mode: GuardMode.Error,
+            scope: GuardScope.Solution,
+            includedEntrypoints: [appA]);
+
+        GuardAnalysisResult result = ResolutionGuardNuGetAnalyzer.Analyze(settings);
+        Expect(result.Mismatches.Count == 0, "solution scope should ignore projects outside the solution.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestRuleOffSuppressesMismatch()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        WriteProjectAssets(root, "src/AppA/AppA.csproj", ("Suppressed.Package", "1.0.0"));
+        WriteProjectAssets(root, "src/AppB/AppB.csproj", ("Suppressed.Package", "2.0.0"));
+
+        GuardSettings settings = CreateSettings(
+            root,
+            mode: GuardMode.Warning,
+            rules: new Dictionary<string, GuardRule>(GuardPathComparer.StringComparer)
+            {
+                ["Suppressed.Package"] = CreateRule(GuardMode.Off),
+            });
+
+        GuardAnalysisResult result = ResolutionGuardNuGetAnalyzer.Analyze(settings);
+        Expect(result.Mismatches.Count == 0, "Rule mode off should suppress mismatches.");
     }
     finally
     {
@@ -264,6 +737,286 @@ void TestExcludedEntrypoints()
     }
 }
 
+void TestResolverSolutionScopeLoadsSlnxProjects()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        string appA = Normalize(Path.Combine(root, "src/AppA/AppA.csproj"));
+        string appB = Normalize(Path.Combine(root, "src/AppB/AppB.csproj"));
+        string solutionPath = Path.Combine(root, "Repo.slnx");
+
+        Directory.CreateDirectory(Path.GetDirectoryName(appA) ?? root);
+        Directory.CreateDirectory(Path.GetDirectoryName(appB) ?? root);
+        File.WriteAllText(
+            solutionPath,
+            """
+            <Solution>
+              <Project Path="src/AppA/AppA.csproj" />
+              <Folder Name="/nested/">
+                <Project Path="src/AppB/AppB.csproj" />
+              </Folder>
+            </Solution>
+            """);
+
+        GuardSettingsResolution resolved = GuardSettingsResolver.Resolve(
+            projectDirectory: root,
+            repositoryRootOverride: root,
+            configFileOverride: null,
+            modeOverride: null,
+            directOnlyOverride: null,
+            runtimeOnlyOverride: null,
+            scopeOverride: "solution",
+            enabledOverride: "true",
+            solutionFileOverride: solutionPath,
+            excludedEntrypointsOverride: null,
+            excludedPackageIdsOverride: null);
+
+        Expect(resolved.Settings.Scope == GuardScope.Solution, "Scope should remain solution.");
+        Expect(resolved.Settings.IncludedEntrypoints.Contains(appA), "slnx should include AppA.");
+        Expect(resolved.Settings.IncludedEntrypoints.Contains(appB), "slnx should include AppB.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestResolverSolutionScopeLoadsSlnProjects()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        string appA = Normalize(Path.Combine(root, "src/AppA/AppA.csproj"));
+        string solutionPath = Path.Combine(root, "Repo.sln");
+
+        Directory.CreateDirectory(Path.GetDirectoryName(appA) ?? root);
+        File.WriteAllText(
+            solutionPath,
+            """
+            Microsoft Visual Studio Solution File, Format Version 12.00
+            # Visual Studio Version 17
+            Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AppA", "src\AppA\AppA.csproj", "{11111111-1111-1111-1111-111111111111}"
+            EndProject
+            Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{22222222-2222-2222-2222-222222222222}"
+            EndProject
+            Global
+            EndGlobal
+            """);
+
+        GuardSettingsResolution resolved = GuardSettingsResolver.Resolve(
+            projectDirectory: root,
+            repositoryRootOverride: root,
+            configFileOverride: null,
+            modeOverride: null,
+            directOnlyOverride: null,
+            runtimeOnlyOverride: null,
+            scopeOverride: "solution",
+            enabledOverride: "true",
+            solutionFileOverride: solutionPath,
+            excludedEntrypointsOverride: null,
+            excludedPackageIdsOverride: null);
+
+        Expect(resolved.Settings.Scope == GuardScope.Solution, "Scope should remain solution.");
+        Expect(resolved.Settings.IncludedEntrypoints.Contains(appA), "sln should include AppA.");
+        Expect(resolved.Settings.IncludedEntrypoints.Count == 1, "Solution folders should be ignored.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestResolverSolutionScopeMissingFileFallsBack()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        GuardSettingsResolution resolved = GuardSettingsResolver.Resolve(
+            projectDirectory: root,
+            repositoryRootOverride: root,
+            configFileOverride: null,
+            modeOverride: null,
+            directOnlyOverride: null,
+            runtimeOnlyOverride: null,
+            scopeOverride: "solution",
+            enabledOverride: "true",
+            solutionFileOverride: Path.Combine(root, "missing.slnx"),
+            excludedEntrypointsOverride: null,
+            excludedPackageIdsOverride: null);
+
+        Expect(resolved.Settings.Scope == GuardScope.Repository, "Missing solution file should fall back to repository scope.");
+        Expect(
+            resolved.Diagnostics.Any(x => x.Contains("does not exist", StringComparison.OrdinalIgnoreCase)),
+            "Missing solution file should report a diagnostic.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestResolverSolutionScopeNoFileFallsBack()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        GuardSettingsResolution resolved = GuardSettingsResolver.Resolve(
+            projectDirectory: root,
+            repositoryRootOverride: root,
+            configFileOverride: null,
+            modeOverride: null,
+            directOnlyOverride: null,
+            runtimeOnlyOverride: null,
+            scopeOverride: "solution",
+            enabledOverride: "true",
+            solutionFileOverride: null,
+            excludedEntrypointsOverride: null,
+            excludedPackageIdsOverride: null);
+
+        Expect(resolved.Settings.Scope == GuardScope.Repository, "Missing solution path should fall back to repository scope.");
+        Expect(
+            resolved.Diagnostics.Any(x => x.Contains("no solution file was provided", StringComparison.OrdinalIgnoreCase)),
+            "Missing solution path should report a diagnostic.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestResolverSolutionScopeUnsupportedFileFallsBack()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        string solutionPath = Path.Combine(root, "Repo.txt");
+        File.WriteAllText(solutionPath, "not a solution");
+
+        GuardSettingsResolution resolved = GuardSettingsResolver.Resolve(
+            projectDirectory: root,
+            repositoryRootOverride: root,
+            configFileOverride: null,
+            modeOverride: null,
+            directOnlyOverride: null,
+            runtimeOnlyOverride: null,
+            scopeOverride: "solution",
+            enabledOverride: "true",
+            solutionFileOverride: solutionPath,
+            excludedEntrypointsOverride: null,
+            excludedPackageIdsOverride: null);
+
+        Expect(resolved.Settings.Scope == GuardScope.Repository, "Unsupported solution file should fall back to repository scope.");
+        Expect(
+            resolved.Diagnostics.Any(x => x.Contains("Unsupported solution file", StringComparison.OrdinalIgnoreCase)),
+            "Unsupported solution file should report a diagnostic.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestResolverSolutionScopeMalformedFileFallsBack()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        string solutionPath = Path.Combine(root, "Repo.slnx");
+        File.WriteAllText(solutionPath, "<Solution>");
+
+        GuardSettingsResolution resolved = GuardSettingsResolver.Resolve(
+            projectDirectory: root,
+            repositoryRootOverride: root,
+            configFileOverride: null,
+            modeOverride: null,
+            directOnlyOverride: null,
+            runtimeOnlyOverride: null,
+            scopeOverride: "solution",
+            enabledOverride: "true",
+            solutionFileOverride: solutionPath,
+            excludedEntrypointsOverride: null,
+            excludedPackageIdsOverride: null);
+
+        Expect(resolved.Settings.Scope == GuardScope.Repository, "Malformed solution file should fall back to repository scope.");
+        Expect(
+            resolved.Diagnostics.Any(x => x.Contains("Failed to read solution", StringComparison.OrdinalIgnoreCase)),
+            "Malformed solution file should report a parse diagnostic.");
+        Expect(
+            resolved.Diagnostics.Any(x => x.Contains("solution scope could not be resolved", StringComparison.OrdinalIgnoreCase)),
+            "Malformed solution file should report fallback diagnostic.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestResolverDiscoversConfigInParent()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        string configPath = Path.Combine(root, "nuget-resolution-guard.json");
+        string projectDirectory = Path.Combine(root, "src", "App");
+        Directory.CreateDirectory(projectDirectory);
+
+        File.WriteAllText(
+            configPath,
+            """
+            {
+              "mode": "error"
+            }
+            """);
+
+        GuardSettingsResolution resolved = GuardSettingsResolver.Resolve(
+            projectDirectory: projectDirectory,
+            repositoryRootOverride: root,
+            configFileOverride: null,
+            modeOverride: null,
+            directOnlyOverride: null,
+            runtimeOnlyOverride: null,
+            enabledOverride: "true",
+            excludedEntrypointsOverride: null,
+            excludedPackageIdsOverride: null);
+
+        Expect(resolved.Settings.ConfigFilePath == Normalize(configPath), "Config should be discovered from parent directories.");
+        Expect(resolved.Settings.Mode == GuardMode.Error, "Discovered config should be applied.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestResolverDiscoversGitRepositoryRoot()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        string projectDirectory = Path.Combine(root, "src", "App");
+        Directory.CreateDirectory(projectDirectory);
+        Directory.CreateDirectory(Path.Combine(root, ".git"));
+
+        GuardSettingsResolution resolved = GuardSettingsResolver.Resolve(
+            projectDirectory: projectDirectory,
+            repositoryRootOverride: null,
+            configFileOverride: null,
+            modeOverride: null,
+            directOnlyOverride: null,
+            runtimeOnlyOverride: null,
+            enabledOverride: "true",
+            excludedEntrypointsOverride: null,
+            excludedPackageIdsOverride: null);
+
+        Expect(resolved.Settings.RepositoryRoot == Normalize(root), "Repository root should resolve to the nearest .git ancestor.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
 void TestResolverExcludePackageIds()
 {
     string root = CreateTempRoot();
@@ -295,6 +1048,287 @@ void TestResolverExcludePackageIds()
         Expect(
             !resolved.Settings.ExcludedPackageIds.Contains("Package.FromConfig"),
             "exclude package ids override should replace config list.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestResolverInvalidModeReportsDiagnostics()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        string configPath = Path.Combine(root, "nuget-resolution-guard.json");
+        File.WriteAllText(
+            configPath,
+            """
+            {
+              "mode": "invalid-from-config"
+            }
+            """);
+
+        GuardSettingsResolution resolved = GuardSettingsResolver.Resolve(
+            projectDirectory: root,
+            repositoryRootOverride: root,
+            configFileOverride: configPath,
+            modeOverride: "invalid-from-override",
+            directOnlyOverride: null,
+            runtimeOnlyOverride: null,
+            enabledOverride: "true",
+            excludedEntrypointsOverride: null,
+            excludedPackageIdsOverride: null);
+
+        Expect(resolved.Settings.Mode == GuardMode.Warning, "Invalid modes should keep the default warning mode.");
+        Expect(
+            resolved.Diagnostics.Any(x => x.Contains("Unknown mode 'invalid-from-config'", StringComparison.OrdinalIgnoreCase)),
+            "Invalid config mode should report a diagnostic.");
+        Expect(
+            resolved.Diagnostics.Any(x => x.Contains("Unknown mode override 'invalid-from-override'", StringComparison.OrdinalIgnoreCase)),
+            "Invalid mode override should report a diagnostic.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestResolverInvalidBooleanOverridesReportDiagnostics()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        string configPath = Path.Combine(root, "nuget-resolution-guard.json");
+        File.WriteAllText(
+            configPath,
+            """
+            {
+              "directOnly": true,
+              "runtimeOnly": false
+            }
+            """);
+
+        GuardSettingsResolution resolved = GuardSettingsResolver.Resolve(
+            projectDirectory: root,
+            repositoryRootOverride: root,
+            configFileOverride: configPath,
+            modeOverride: null,
+            directOnlyOverride: "not-a-bool",
+            runtimeOnlyOverride: "still-not-a-bool",
+            enabledOverride: "true",
+            excludedEntrypointsOverride: null,
+            excludedPackageIdsOverride: null);
+
+        Expect(resolved.Settings.DirectOnly, "Invalid directOnly override should keep config value.");
+        Expect(!resolved.Settings.RuntimeOnly, "Invalid runtimeOnly override should keep config value.");
+        Expect(
+            resolved.Diagnostics.Any(x => x.Contains("Unknown directOnly override", StringComparison.OrdinalIgnoreCase)),
+            "Invalid directOnly override should report a diagnostic.");
+        Expect(
+            resolved.Diagnostics.Any(x => x.Contains("Unknown runtimeOnly override", StringComparison.OrdinalIgnoreCase)),
+            "Invalid runtimeOnly override should report a diagnostic.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestResolverInvalidRuleModeReportsDiagnostic()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        string configPath = Path.Combine(root, "nuget-resolution-guard.json");
+        File.WriteAllText(
+            configPath,
+            """
+            {
+              "rules": [
+                {
+                  "packageId": "Invalid.Rule.Package",
+                  "mode": "unsupported"
+                }
+              ]
+            }
+            """);
+
+        GuardSettingsResolution resolved = GuardSettingsResolver.Resolve(
+            projectDirectory: root,
+            repositoryRootOverride: root,
+            configFileOverride: configPath,
+            modeOverride: null,
+            directOnlyOverride: null,
+            runtimeOnlyOverride: null,
+            enabledOverride: "true",
+            excludedEntrypointsOverride: null,
+            excludedPackageIdsOverride: null);
+
+        Expect(
+            !resolved.Settings.Rules.ContainsKey("Invalid.Rule.Package"),
+            "Rule with invalid mode should be ignored.");
+        Expect(
+            resolved.Diagnostics.Any(x => x.Contains("Unknown rule mode", StringComparison.OrdinalIgnoreCase)),
+            "Invalid rule mode should report a diagnostic.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestResolverInvalidConfigFileReportsDiagnostic()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        string configPath = Path.Combine(root, "nuget-resolution-guard.json");
+        File.WriteAllText(configPath, "{ invalid json");
+
+        GuardSettingsResolution resolved = GuardSettingsResolver.Resolve(
+            projectDirectory: root,
+            repositoryRootOverride: root,
+            configFileOverride: configPath,
+            modeOverride: null,
+            directOnlyOverride: null,
+            runtimeOnlyOverride: null,
+            enabledOverride: "true",
+            excludedEntrypointsOverride: null,
+            excludedPackageIdsOverride: null);
+
+        Expect(
+            resolved.Diagnostics.Any(x => x.Contains("Failed to read config", StringComparison.OrdinalIgnoreCase)),
+            "Malformed config should report a diagnostic.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestResolverConfigScopeApplies()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        string configPath = Path.Combine(root, "nuget-resolution-guard.json");
+        string appA = Normalize(Path.Combine(root, "src/AppA/AppA.csproj"));
+        string solutionPath = Path.Combine(root, "Repo.slnx");
+
+        Directory.CreateDirectory(Path.GetDirectoryName(appA) ?? root);
+        File.WriteAllText(
+            configPath,
+            """
+            {
+              "scope": "solution"
+            }
+            """);
+        File.WriteAllText(
+            solutionPath,
+            """
+            <Solution>
+              <Project Path="src/AppA/AppA.csproj" />
+            </Solution>
+            """);
+
+        GuardSettingsResolution resolved = GuardSettingsResolver.Resolve(
+            projectDirectory: root,
+            repositoryRootOverride: root,
+            configFileOverride: configPath,
+            modeOverride: null,
+            directOnlyOverride: null,
+            runtimeOnlyOverride: null,
+            scopeOverride: null,
+            enabledOverride: "true",
+            solutionFileOverride: solutionPath,
+            excludedEntrypointsOverride: null,
+            excludedPackageIdsOverride: null);
+
+        Expect(resolved.Settings.Scope == GuardScope.Solution, "Config scope should apply when override is absent.");
+        Expect(resolved.Settings.IncludedEntrypoints.Contains(appA), "Config scope should load solution projects.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestResolverScopeOverride()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        string configPath = Path.Combine(root, "nuget-resolution-guard.json");
+        string solutionPath = Path.Combine(root, "Repo.slnx");
+        File.WriteAllText(
+            configPath,
+            """
+            {
+              "scope": "repository"
+            }
+            """);
+        File.WriteAllText(
+            solutionPath,
+            """
+            <Solution />
+            """);
+
+        GuardSettingsResolution resolved = GuardSettingsResolver.Resolve(
+            projectDirectory: root,
+            repositoryRootOverride: root,
+            configFileOverride: configPath,
+            modeOverride: null,
+            directOnlyOverride: null,
+            runtimeOnlyOverride: null,
+            scopeOverride: "solution",
+            enabledOverride: "true",
+            solutionFileOverride: solutionPath,
+            excludedEntrypointsOverride: null,
+            excludedPackageIdsOverride: null);
+
+        Expect(resolved.Settings.Scope == GuardScope.Solution, "scope override should apply.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestResolverInvalidScopeReportsDiagnostics()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        string configPath = Path.Combine(root, "nuget-resolution-guard.json");
+        File.WriteAllText(
+            configPath,
+            """
+            {
+              "scope": "invalid-from-config"
+            }
+            """);
+
+        GuardSettingsResolution resolved = GuardSettingsResolver.Resolve(
+            projectDirectory: root,
+            repositoryRootOverride: root,
+            configFileOverride: configPath,
+            modeOverride: null,
+            directOnlyOverride: null,
+            runtimeOnlyOverride: null,
+            scopeOverride: "invalid-from-override",
+            enabledOverride: "true",
+            solutionFileOverride: null,
+            excludedEntrypointsOverride: null,
+            excludedPackageIdsOverride: null);
+
+        Expect(resolved.Settings.Scope == GuardScope.Repository, "Invalid scopes should keep repository scope.");
+        Expect(
+            resolved.Diagnostics.Any(x => x.Contains("Unknown scope 'invalid-from-config'", StringComparison.OrdinalIgnoreCase)),
+            "Invalid config scope should report a diagnostic.");
+        Expect(
+            resolved.Diagnostics.Any(x => x.Contains("Unknown scope override 'invalid-from-override'", StringComparison.OrdinalIgnoreCase)),
+            "Invalid scope override should report a diagnostic.");
     }
     finally
     {
@@ -490,8 +1524,10 @@ void TestResolverExcludesEmptyOverridesKeepConfig()
 GuardSettings CreateSettings(
     string root,
     GuardMode mode,
+    GuardScope scope = GuardScope.Repository,
     bool directOnly = false,
     bool runtimeOnly = false,
+    IEnumerable<string>? includedEntrypoints = null,
     IEnumerable<string>? excludedEntrypoints = null,
     IEnumerable<string>? excludedPackageIds = null,
     IDictionary<string, GuardRule>? rules = null)
@@ -500,11 +1536,13 @@ GuardSettings CreateSettings(
     {
         Enabled = true,
         Mode = mode,
+        Scope = scope,
         DirectOnly = directOnly,
         RuntimeOnly = runtimeOnly,
         RepositoryRoot = Normalize(root),
         ProjectDirectory = Normalize(root),
         ConfigFilePath = null,
+        IncludedEntrypoints = new HashSet<string>((includedEntrypoints ?? []).Select(Normalize), GuardPathComparer.StringComparer),
         ExcludedEntrypoints = new HashSet<string>((excludedEntrypoints ?? []).Select(Normalize), GuardPathComparer.StringComparer),
         ExcludedPackageIds = new HashSet<string>(excludedPackageIds ?? [], GuardPathComparer.StringComparer),
         Rules = CloneRules(rules),
@@ -547,6 +1585,21 @@ string WriteProjectAssetsDetailed(
     string projectRelativePath,
     params (string PackageId, string Version, bool IsDirect, bool HasRuntimeAssets)[] packages)
 {
+    return WriteProjectAssetsDetailedWithOptions(
+        root,
+        projectRelativePath,
+        includeTargets: true,
+        includeRestoreProjectPath: true,
+        packages: packages);
+}
+
+string WriteProjectAssetsDetailedWithOptions(
+    string root,
+    string projectRelativePath,
+    bool includeTargets,
+    bool includeRestoreProjectPath,
+    params (string PackageId, string Version, bool IsDirect, bool HasRuntimeAssets)[] packages)
+{
     string projectPath = Normalize(Path.Combine(root, projectRelativePath));
     string projectDirectory = Path.GetDirectoryName(projectPath) ?? throw new InvalidOperationException("Project directory missing.");
     Directory.CreateDirectory(projectDirectory);
@@ -587,7 +1640,10 @@ string WriteProjectAssetsDetailed(
             };
         }
 
-        targetLibraries[$"{package.PackageId}/{package.Version}"] = targetLibrary;
+        if (includeTargets)
+        {
+            targetLibraries[$"{package.PackageId}/{package.Version}"] = targetLibrary;
+        }
 
         if (package.IsDirect)
         {
@@ -595,29 +1651,37 @@ string WriteProjectAssetsDetailed(
         }
     }
 
+    var projectNode = new Dictionary<string, object?>();
+    if (includeRestoreProjectPath)
+    {
+        projectNode["restore"] = new Dictionary<string, object?>
+        {
+            ["projectPath"] = projectPath,
+        };
+    }
+
+    projectNode["frameworks"] = new Dictionary<string, object?>
+    {
+        ["net8.0"] = new Dictionary<string, object?>
+        {
+            ["dependencies"] = directDependencies,
+        },
+    };
+
     var jsonModel = new Dictionary<string, object?>
     {
         ["version"] = 3,
         ["libraries"] = libraries,
-        ["targets"] = new Dictionary<string, object?>
+        ["project"] = projectNode,
+    };
+
+    if (includeTargets)
+    {
+        jsonModel["targets"] = new Dictionary<string, object?>
         {
             ["net8.0"] = targetLibraries,
-        },
-        ["project"] = new Dictionary<string, object?>
-        {
-            ["restore"] = new Dictionary<string, object?>
-            {
-                ["projectPath"] = projectPath,
-            },
-            ["frameworks"] = new Dictionary<string, object?>
-            {
-                ["net8.0"] = new Dictionary<string, object?>
-                {
-                    ["dependencies"] = directDependencies,
-                },
-            },
-        },
-    };
+        };
+    }
 
     string objDirectory = Path.Combine(projectDirectory, "obj");
     Directory.CreateDirectory(objDirectory);
@@ -626,6 +1690,24 @@ string WriteProjectAssetsDetailed(
     string json = JsonSerializer.Serialize(jsonModel, CachedJsonSerializerOptions);
     File.WriteAllText(assetsPath, json);
 
+    return projectPath;
+}
+
+string WriteRawProjectAssets(string root, string projectRelativePath, string rawJson)
+{
+    string projectPath = Normalize(Path.Combine(root, projectRelativePath));
+    string projectDirectory = Path.GetDirectoryName(projectPath) ?? throw new InvalidOperationException("Project directory missing.");
+    Directory.CreateDirectory(projectDirectory);
+
+    if (!File.Exists(projectPath))
+    {
+        File.WriteAllText(projectPath, "<Project Sdk=\"Microsoft.NET.Sdk\" />");
+    }
+
+    string objDirectory = Path.Combine(projectDirectory, "obj");
+    Directory.CreateDirectory(objDirectory);
+    string assetsPath = Path.Combine(objDirectory, "project.assets.json");
+    File.WriteAllText(assetsPath, rawJson);
     return projectPath;
 }
 
@@ -647,5 +1729,315 @@ void Expect(bool condition, string message)
     if (!condition)
     {
         throw new InvalidOperationException(message);
+    }
+}
+
+MsBuildIntegrationFixture CreateMsBuildIntegrationFixture(string root, string initialScope)
+{
+    string feedDirectory = Path.Combine(root, "feed");
+    string packageSourceDirectory = Path.Combine(root, "pkgsrc");
+    string packageProjectPath = Path.Combine(packageSourceDirectory, "Fixture.Dependency.csproj");
+    string appAProjectPath = Path.Combine(root, "src", "AppA", "AppA.csproj");
+    string appBProjectPath = Path.Combine(root, "src", "AppB", "AppB.csproj");
+    string solutionFilePath = Path.Combine(root, "Repo.slnx");
+
+    Directory.CreateDirectory(feedDirectory);
+    Directory.CreateDirectory(packageSourceDirectory);
+
+    File.WriteAllText(
+        packageProjectPath,
+        """
+        <Project Sdk="Microsoft.NET.Sdk">
+          <PropertyGroup>
+            <TargetFramework>net8.0</TargetFramework>
+            <ImplicitUsings>enable</ImplicitUsings>
+            <Nullable>enable</Nullable>
+          </PropertyGroup>
+        </Project>
+        """);
+
+    File.WriteAllText(
+        Path.Combine(packageSourceDirectory, "Placeholder.cs"),
+        "namespace Fixture.Dependency; public sealed class Placeholder { }");
+
+    CommandResult packV1 = RunDotNet(
+        $"pack \"{packageProjectPath}\" -p:PackageId=Fixture.Dependency -p:Version=1.0.0 -o \"{feedDirectory}\" --nologo -v:minimal",
+        root);
+    Expect(packV1.Succeeded, $"Packing Fixture.Dependency 1.0.0 failed.{Environment.NewLine}{packV1.Output}");
+
+    CommandResult packV2 = RunDotNet(
+        $"pack \"{packageProjectPath}\" -p:PackageId=Fixture.Dependency -p:Version=2.0.0 -o \"{feedDirectory}\" --nologo -v:minimal",
+        root);
+    Expect(packV2.Succeeded, $"Packing Fixture.Dependency 2.0.0 failed.{Environment.NewLine}{packV2.Output}");
+
+    File.WriteAllText(
+        Path.Combine(root, "NuGet.Config"),
+        $"""
+        <?xml version="1.0" encoding="utf-8"?>
+        <configuration>
+          <packageSources>
+            <clear />
+            <add key="local" value="{EscapeXml(Normalize(feedDirectory))}" />
+          </packageSources>
+        </configuration>
+        """);
+
+    string guardPackageLayout = CreateGuardPackageLayout(root);
+
+    Directory.CreateDirectory(Path.GetDirectoryName(appAProjectPath) ?? root);
+    Directory.CreateDirectory(Path.GetDirectoryName(appBProjectPath) ?? root);
+
+    WriteMsBuildIntegrationProjectFile(
+        appAProjectPath,
+        guardPackageLayout,
+        packageVersion: "1.0.0",
+        repositoryRoot: root,
+        scope: initialScope,
+        enableGuard: true);
+
+    WriteMsBuildIntegrationProjectFile(
+        appBProjectPath,
+        guardPackageLayout,
+        packageVersion: "2.0.0",
+        repositoryRoot: root,
+        scope: "repository",
+        enableGuard: false);
+
+    File.WriteAllText(
+        solutionFilePath,
+        """
+        <Solution>
+          <Project Path="src/AppA/AppA.csproj" />
+        </Solution>
+        """);
+
+    CommandResult restoreAppB = RunDotNet(
+        $"restore \"{appBProjectPath}\" --nologo -v:minimal",
+        root);
+    Expect(restoreAppB.Succeeded, $"Restoring AppB failed.{Environment.NewLine}{restoreAppB.Output}");
+
+    return new MsBuildIntegrationFixture
+    {
+        AppAProjectPath = appAProjectPath,
+        AppBAssetsPath = Path.Combine(Path.GetDirectoryName(appBProjectPath) ?? root, "obj", "project.assets.json"),
+        SolutionFilePath = solutionFilePath,
+    };
+}
+
+void SetMsBuildIntegrationScope(string appAProjectPath, string scope)
+{
+    SetMsBuildIntegrationProperty(appAProjectPath, "ResolutionGuardNuGetScope", scope);
+}
+
+void SetMsBuildIntegrationEmitSuccessMessage(string appAProjectPath, string value)
+{
+    SetMsBuildIntegrationProperty(appAProjectPath, "ResolutionGuardNuGetEmitSuccessMessage", value);
+}
+
+void SetMsBuildIntegrationProperty(string projectPath, string propertyName, string value)
+{
+    XDocument document = XDocument.Parse(File.ReadAllText(projectPath), LoadOptions.PreserveWhitespace);
+    XElement root = document.Root ?? throw new InvalidOperationException("MSBuild integration fixture project is missing a root element.");
+
+    XNamespace ns = root.Name.Namespace;
+    XName propertyGroupName = ns + "PropertyGroup";
+    XName targetPropertyName = ns + propertyName;
+
+    XElement propertyGroup = root.Elements(propertyGroupName).FirstOrDefault()
+        ?? throw new InvalidOperationException("MSBuild integration fixture project is missing a PropertyGroup element.");
+
+    XElement property = propertyGroup.Element(targetPropertyName) ?? new XElement(targetPropertyName);
+    property.Value = value;
+
+    if (property.Parent is null)
+    {
+        propertyGroup.Add(property);
+    }
+
+    File.WriteAllText(projectPath, document.ToString());
+}
+
+void WriteMsBuildIntegrationProjectFile(
+    string projectPath,
+    string guardPackageLayout,
+    string packageVersion,
+    string repositoryRoot,
+    string scope,
+    bool enableGuard)
+{
+    string buildTransitiveProps = Normalize(Path.Combine(guardPackageLayout, "buildTransitive", "ResolutionGuard.NuGet.props"));
+    string buildTransitiveTargets = Normalize(Path.Combine(guardPackageLayout, "buildTransitive", "ResolutionGuard.NuGet.targets"));
+
+    string projectXml =
+        $"""
+        <Project Sdk="Microsoft.NET.Sdk">
+          {(enableGuard ? $"<Import Project=\"{EscapeXml(buildTransitiveProps)}\" />" : string.Empty)}
+          <PropertyGroup>
+            <TargetFramework>net8.0</TargetFramework>
+            <ImplicitUsings>enable</ImplicitUsings>
+            <Nullable>enable</Nullable>
+            {(enableGuard ? "<ResolutionGuardNuGetEnabled>true</ResolutionGuardNuGetEnabled>" : string.Empty)}
+            {(enableGuard ? "<ResolutionGuardNuGetMode>error</ResolutionGuardNuGetMode>" : string.Empty)}
+            {(enableGuard ? $"<ResolutionGuardNuGetScope>{EscapeXml(scope)}</ResolutionGuardNuGetScope>" : string.Empty)}
+            {(enableGuard ? $"<ResolutionGuardNuGetRepositoryRoot>{EscapeXml(Normalize(repositoryRoot))}</ResolutionGuardNuGetRepositoryRoot>" : string.Empty)}
+          </PropertyGroup>
+          <ItemGroup>
+            <PackageReference Include="Fixture.Dependency" Version="{EscapeXml(packageVersion)}" />
+          </ItemGroup>
+          {(enableGuard ? $"<Import Project=\"{EscapeXml(buildTransitiveTargets)}\" />" : string.Empty)}
+        </Project>
+        """;
+
+    File.WriteAllText(projectPath, projectXml);
+}
+
+string CreateGuardPackageLayout(string root)
+{
+    string layoutRoot = Path.Combine(root, ".guardpkg");
+    string repoRoot = FindRepositoryRootForTests();
+    string sourcePackageRoot = Path.Combine(repoRoot, "src", "ResolutionGuard.NuGet.Package");
+    string buildDirectory = Path.Combine(layoutRoot, "build");
+    string buildTransitiveDirectory = Path.Combine(layoutRoot, "buildTransitive");
+    string tasksDirectory = Path.Combine(layoutRoot, "tasks", "netstandard2.0");
+
+    Directory.CreateDirectory(buildDirectory);
+    Directory.CreateDirectory(buildTransitiveDirectory);
+    Directory.CreateDirectory(tasksDirectory);
+
+    foreach (string fileName in new[] { "ResolutionGuard.NuGet.props", "ResolutionGuard.NuGet.targets" })
+    {
+        File.Copy(
+            Path.Combine(sourcePackageRoot, "build", fileName),
+            Path.Combine(buildDirectory, fileName),
+            overwrite: true);
+        File.Copy(
+            Path.Combine(sourcePackageRoot, "buildTransitive", fileName),
+            Path.Combine(buildTransitiveDirectory, fileName),
+            overwrite: true);
+    }
+
+    string taskAssemblyPath = typeof(ResolutionGuardNuGetTask).Assembly.Location;
+    string taskAssemblyDirectory = Path.GetDirectoryName(taskAssemblyPath) ?? throw new InvalidOperationException("Task assembly directory missing.");
+
+    foreach (string fileName in new[] { "ResolutionGuard.NuGet.Tasks.dll", "ResolutionGuard.NuGet.Core.dll" })
+    {
+        File.Copy(
+            Path.Combine(taskAssemblyDirectory, fileName),
+            Path.Combine(tasksDirectory, fileName),
+            overwrite: true);
+    }
+
+    return layoutRoot;
+}
+
+string FindRepositoryRootForTests()
+{
+    DirectoryInfo? current = new(Environment.CurrentDirectory);
+    while (current is not null)
+    {
+        if (File.Exists(Path.Combine(current.FullName, "ResolutionGuard.NuGet.slnx")))
+        {
+            return current.FullName;
+        }
+
+        current = current.Parent;
+    }
+
+    throw new InvalidOperationException("Could not locate the repository root for integration fixtures.");
+}
+
+string EscapeXml(string value)
+{
+    return value
+        .Replace("&", "&amp;", StringComparison.Ordinal)
+        .Replace("\"", "&quot;", StringComparison.Ordinal)
+        .Replace("<", "&lt;", StringComparison.Ordinal)
+        .Replace(">", "&gt;", StringComparison.Ordinal);
+}
+
+CommandResult RunDotNet(string arguments, string workingDirectory)
+{
+    ProcessStartInfo startInfo = new("dotnet", arguments)
+    {
+        WorkingDirectory = workingDirectory,
+        RedirectStandardOutput = true,
+        RedirectStandardError = true,
+        UseShellExecute = false,
+    };
+
+    using Process process = Process.Start(startInfo)
+        ?? throw new InvalidOperationException($"Failed to start dotnet {arguments}.");
+
+    string standardOutput = process.StandardOutput.ReadToEnd();
+    string standardError = process.StandardError.ReadToEnd();
+    process.WaitForExit();
+
+    string output = string.Join(
+        Environment.NewLine,
+        new[] { standardOutput, standardError }.Where(x => !string.IsNullOrWhiteSpace(x)));
+
+    return new CommandResult
+    {
+        ExitCode = process.ExitCode,
+        Output = output,
+    };
+}
+
+sealed class MsBuildIntegrationFixture
+{
+    public string AppAProjectPath { get; set; } = string.Empty;
+
+    public string AppBAssetsPath { get; set; } = string.Empty;
+
+    public string SolutionFilePath { get; set; } = string.Empty;
+}
+
+sealed class CommandResult
+{
+    public int ExitCode { get; set; }
+
+    public string Output { get; set; } = string.Empty;
+
+    public bool Succeeded => ExitCode == 0;
+}
+
+sealed class RecordingBuildEngine : IBuildEngine
+{
+    public List<string> Messages { get; } = [];
+
+    public List<string> Warnings { get; } = [];
+
+    public List<string> Errors { get; } = [];
+
+    public bool ContinueOnError => false;
+
+    public int LineNumberOfTaskNode => 0;
+
+    public int ColumnNumberOfTaskNode => 0;
+
+    public string ProjectFileOfTaskNode => "ResolutionGuard.NuGet.Tests";
+
+    public bool BuildProjectFile(string projectFileName, string[] targetNames, System.Collections.IDictionary globalProperties, System.Collections.IDictionary targetOutputs)
+    {
+        return false;
+    }
+
+    public void LogCustomEvent(CustomBuildEventArgs e)
+    {
+    }
+
+    public void LogErrorEvent(BuildErrorEventArgs e)
+    {
+        Errors.Add(e.Message);
+    }
+
+    public void LogMessageEvent(BuildMessageEventArgs e)
+    {
+        Messages.Add(e.Message);
+    }
+
+    public void LogWarningEvent(BuildWarningEventArgs e)
+    {
+        Warnings.Add(e.Message);
     }
 }

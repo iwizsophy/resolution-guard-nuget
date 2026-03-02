@@ -14,7 +14,13 @@ public sealed class ResolutionGuardNuGetTask : Microsoft.Build.Utilities.Task
 
     public string? RuntimeOnlyOverride { get; set; }
 
+    public string? ScopeOverride { get; set; }
+
     public string? Enabled { get; set; }
+
+    public string? EmitSuccessMessage { get; set; }
+
+    public string? SolutionFile { get; set; }
 
     public string? ExcludedEntrypoints { get; set; }
 
@@ -27,6 +33,8 @@ public sealed class ResolutionGuardNuGetTask : Microsoft.Build.Utilities.Task
 
     public override bool Execute()
     {
+        bool emitSuccessMessage = ResolveEmitSuccessMessage();
+
         GuardSettingsResolution resolution = GuardSettingsResolver.Resolve(
             projectDirectory: ProjectDirectory,
             repositoryRootOverride: RepositoryRoot,
@@ -34,7 +42,9 @@ public sealed class ResolutionGuardNuGetTask : Microsoft.Build.Utilities.Task
             modeOverride: ModeOverride,
             directOnlyOverride: DirectOnlyOverride,
             runtimeOnlyOverride: RuntimeOnlyOverride,
+            scopeOverride: ScopeOverride,
             enabledOverride: Enabled,
+            solutionFileOverride: SolutionFile,
             excludedEntrypointsOverride: ExcludedEntrypoints,
             excludedPackageIdsOverride: ExcludedPackageIds);
 
@@ -75,10 +85,29 @@ public sealed class ResolutionGuardNuGetTask : Microsoft.Build.Utilities.Task
 
         if (result.Mismatches.Count == 0)
         {
-            Log.LogMessage(MessageImportance.Low, $"ResolutionGuard.NuGet: analyzed {result.AssetsFileCount} assets file(s), no mismatch found.");
+            if (emitSuccessMessage)
+            {
+                Log.LogMessage(MessageImportance.High, $"ResolutionGuard.NuGet: analyzed {result.AssetsFileCount} assets file(s), no mismatch found.");
+            }
         }
 
         return !Log.HasLoggedErrors;
+    }
+
+    private bool ResolveEmitSuccessMessage()
+    {
+        if (string.IsNullOrWhiteSpace(EmitSuccessMessage))
+        {
+            return false;
+        }
+
+        if (bool.TryParse(EmitSuccessMessage, out bool emitSuccessMessage))
+        {
+            return emitSuccessMessage;
+        }
+
+        Log.LogWarning($"ResolutionGuard.NuGet: Unknown emitSuccessMessage value '{EmitSuccessMessage}'. Using 'false'.");
+        return false;
     }
 
     private static string FormatMismatchMessage(PackageMismatch mismatch)

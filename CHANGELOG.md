@@ -4,7 +4,26 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
-## [1.0.0] - Planned
+## [1.1.0] - Released
+
+### Added
+
+- Opt-in `solution` scope to limit analysis to projects listed in a `.sln` or `.slnx`, with automatic fallback to repository scope when no solution file is available.
+- Opt-in `ResolutionGuardNuGetEmitSuccessMessage` MSBuild property to emit a visible success message when analysis completes with no mismatch.
+
+### Changed
+
+- _None_
+
+### Fixed
+
+- _None_
+
+### Removed
+
+- _None_
+
+## [1.0.0] - Released
 
 ### Added
 
@@ -16,7 +35,7 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 ### Changed
 
 - Repository foundations were prepared for the first release, including CI, trusted publishing workflow, and development / release documentation.
-- Package metadata and project configuration were aligned for the planned `1.0.0` release.
+- Package metadata and project configuration were aligned for the `1.0.0` release.
 
 ### Fixed
 
@@ -26,4 +45,5 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 
 - _None_
 
+[1.1.0]: https://github.com/iwizsophy/resolution-guard-nuget/releases/tag/v1.1.0
 [1.0.0]: https://github.com/iwizsophy/resolution-guard-nuget/releases/tag/v1.0.0
