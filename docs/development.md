@@ -2,12 +2,15 @@
 
 This document is for maintainers and contributors.
 
-## Prerequisites
+## Environment assumptions
 
-- .NET SDK installed
-- Validated SDK versions in this repository:
-  - 8.0.x
-  - 10.0.x
+`ResolutionGuard.NuGet` is distributed as an MSBuild task package targeting `netstandard2.0`.
+
+Development and validation in this repository assume an SDK-style .NET build environment that:
+- can run `dotnet restore`, `dotnet build`, and `dotnet pack`
+- can consume packages whose task assemblies target `netstandard2.0`
+
+This repository does not maintain a version-by-version IDE or SDK support matrix.
 
 ## Build and test
 

@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
+## [1.2.0] - Released
+
+### Added
+
+- Repository governance files for issue templates, pull request guidance, CODEOWNERS, and weekly Dependabot update proposals targeting `develop`.
+
+### Changed
+
+- README and development guides now describe supported environments in terms of `netstandard2.0` MSBuild task compatibility instead of listing a narrow validated SDK matrix.
+- README links were aligned for NuGet rendering so image and cross-language references use absolute URLs.
+- Contributing and trusted-publishing documentation now documents branch flow, documentation/schema sync expectations, dependency notice updates, and the current Trusted Publishing setup more explicitly.
+
+### Fixed
+
+- Publish-time packing now disables RelaxVersioner's working-directory dirty check so generated build outputs do not silently bump the package version away from the release tag.
+
+### Removed
+
+- _None_
+
 ## [1.1.0] - Released
 
 ### Added
@@ -47,3 +67,4 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 
 [1.1.0]: https://github.com/iwizsophy/resolution-guard-nuget/releases/tag/v1.1.0
 [1.0.0]: https://github.com/iwizsophy/resolution-guard-nuget/releases/tag/v1.0.0
+[1.2.0]: https://github.com/iwizsophy/resolution-guard-nuget/releases/tag/v1.2.0

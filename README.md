@@ -1,8 +1,8 @@
 # ResolutionGuard.NuGet
 
-![ResolutionGuard.NuGet Icon](https://raw.githubusercontent.com/iwizsophy/resolution-guard-nuget/develop/assets/icon.png)
+![ResolutionGuard.NuGet Icon](https://raw.githubusercontent.com/iwizsophy/resolution-guard-nuget/main/assets/icon.png)
 
-Japanese README: [README.ja.md](README.ja.md)
+Japanese README: [README.ja.md](https://github.com/iwizsophy/resolution-guard-nuget/blob/main/README.ja.md)
 
 `ResolutionGuard.NuGet` is an MSBuild Task package that inspects restored `obj/project.assets.json` files and reports NuGet package-version mismatches across projects.
 
@@ -28,20 +28,21 @@ NuGet dependency resolution is performed per entry project. A solution can silen
 - The task does **not** execute external commands and does **not** perform network calls.
 - Default behavior is opt-in: `ResolutionGuardNuGetEnabled=false` unless explicitly enabled.
 
-## Requirements
+## Supported environments
 
-- SDK-style projects using `dotnet restore/build` (cross-platform)
+`ResolutionGuard.NuGet` is distributed as an MSBuild task package targeting `netstandard2.0`.
 
-## Validated Environments
+It is intended for SDK-style .NET build environments that:
+- support MSBuild task execution
+- can consume packages whose task assemblies target `netstandard2.0`
 
-- .NET SDK 8.0.x
-- .NET SDK 10.0.x
+This repository does not maintain a version-by-version IDE or SDK support matrix.
 
 ## Install
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="ResolutionGuard.NuGet" Version="1.1.0" PrivateAssets="all" />
+  <PackageReference Include="ResolutionGuard.NuGet" Version="1.2.0" PrivateAssets="all" />
 </ItemGroup>
 ```
 
