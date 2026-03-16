@@ -42,7 +42,7 @@ This repository does not maintain a version-by-version IDE or SDK support matrix
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="ResolutionGuard.NuGet" Version="1.1.0" PrivateAssets="all" />
+  <PackageReference Include="ResolutionGuard.NuGet" Version="1.2.0" PrivateAssets="all" />
 </ItemGroup>
 ```
 
