@@ -1,8 +1,8 @@
 # ResolutionGuard.NuGet
 
-![ResolutionGuard.NuGet Icon](https://raw.githubusercontent.com/iwizsophy/resolution-guard-nuget/develop/assets/icon.png)
+![ResolutionGuard.NuGet Icon](https://raw.githubusercontent.com/iwizsophy/resolution-guard-nuget/main/assets/icon.png)
 
-Japanese README: [README.ja.md](README.ja.md)
+Japanese README: [README.ja.md](https://github.com/iwizsophy/resolution-guard-nuget/blob/main/README.ja.md)
 
 `ResolutionGuard.NuGet` is an MSBuild Task package that inspects restored `obj/project.assets.json` files and reports NuGet package-version mismatches across projects.
 
