@@ -1,12 +1,16 @@
 version: 2
 updates:
+  # Keep ecosystem entries so Dependabot can continue to raise security updates.
+  # Setting open-pull-requests-limit to 0 disables regular version-update PRs.
   - package-ecosystem: "nuget"
     directory: "/"
     target-branch: "develop"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 0
   - package-ecosystem: "github-actions"
     directory: "/"
     target-branch: "develop"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 0

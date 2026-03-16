@@ -44,7 +44,7 @@ That validation scope describes the repository's current smoke-test coverage. It
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="ResolutionGuard.NuGet" Version="1.2.0" PrivateAssets="all" />
+  <PackageReference Include="ResolutionGuard.NuGet" Version="1.3.0" PrivateAssets="all" />
 </ItemGroup>
 ```
 

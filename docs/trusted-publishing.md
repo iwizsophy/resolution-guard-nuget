@@ -32,9 +32,21 @@ Use NuGet Trusted Publishing with GitHub Actions and OpenID Connect instead of l
 - The publish-time pack step disables `RelaxVersioner` working-directory dirty checks so generated build outputs do not silently bump the package version.
 - The workflow verifies that the generated `.nupkg` filename matches the release tag version before upload.
 
+## Stable release flow
+
+Use this sequence for a nuget.org release such as `v1.3.0`.
+
+1. Ensure the intended release content is merged into `develop`.
+2. Move release-visible notes from `Unreleased` to the concrete version section in `CHANGELOG.md`.
+3. Update the README install snippet to the release version.
+4. Open and merge the release pull request from `develop` to `main`.
+5. Create the release tag from the merge commit on `main`, for example `git tag v1.3.0` followed by `git push origin v1.3.0`.
+6. Confirm that the publish workflow resolves the package version from the tag and targets nuget.org.
+
 ## Release checklist
 
 - `CHANGELOG.md` updated
+- `README.md` and `README.ja.md` install snippets updated to the release version
 - English and Japanese docs reviewed for sync
 - `THIRD-PARTY-NOTICES.md` updated when dependency changes are included
 - release tag created from the intended publish branch

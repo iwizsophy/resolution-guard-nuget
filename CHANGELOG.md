@@ -8,12 +8,31 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 
 ### Added
 
+- _None_
+
+### Changed
+
+- _None_
+
+### Fixed
+
+- _None_
+
+### Removed
+
+- _None_
+
+## [1.3.0] - Released
+
+### Added
+
 - CI smoke-test coverage now validates build-time task behavior against .NET SDK / MSBuild hosts for .NET 8, 9, and 10.
 
 ### Changed
 
 - The smoke-test project now multi-targets `net8.0`, `net9.0`, and `net10.0`, and its integration fixtures generate projects and `project.assets.json` content for the current test target framework instead of assuming `net8.0`.
 - README and development guides now distinguish the shipped package target (`netstandard2.0`) from the repository's current validated SDK / host coverage (`8 / 9 / 10`).
+- Dependabot version-update PR creation is now disabled so the repository only relies on Dependabot security updates.
 
 ### Fixed
 
@@ -87,3 +106,4 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 [1.1.0]: https://github.com/iwizsophy/resolution-guard-nuget/releases/tag/v1.1.0
 [1.0.0]: https://github.com/iwizsophy/resolution-guard-nuget/releases/tag/v1.0.0
 [1.2.0]: https://github.com/iwizsophy/resolution-guard-nuget/releases/tag/v1.2.0
+[1.3.0]: https://github.com/iwizsophy/resolution-guard-nuget/releases/tag/v1.3.0

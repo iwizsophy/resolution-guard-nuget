@@ -24,7 +24,9 @@ ResolutionGuard.NuGet への貢献を歓迎します。
 4. ローカルで次を実行します:
    - `dotnet restore ResolutionGuard.NuGet.slnx`
    - `dotnet build ResolutionGuard.NuGet.slnx -c Release --no-restore`
-   - `dotnet run --project tests/ResolutionGuard.NuGet.Tests -c Release --no-build`
+   - `dotnet run --project tests/ResolutionGuard.NuGet.Tests -c Release --framework net8.0 --no-build`
+   - `dotnet run --project tests/ResolutionGuard.NuGet.Tests -c Release --framework net9.0 --no-build`
+   - `dotnet run --project tests/ResolutionGuard.NuGet.Tests -c Release --framework net10.0 --no-build`
    - `dotnet pack src/ResolutionGuard.NuGet.Package/ResolutionGuard.NuGet.Package.csproj -c Release --no-build -o artifacts`
 5. Pull Request には以下を記載してください:
    - 変更内容
@@ -35,11 +37,13 @@ ResolutionGuard.NuGet への貢献を歓迎します。
 ## リリースと publish に関する補足
 
 - release tag は `v<major>.<minor>.<patch>` 形式を使ってください。
+- 安定版 release は `develop -> main` の release PR をマージしたあと、その merge commit から tag を作成してください。
 - `main` に到達可能な tag 対象 commit は `https://api.nuget.org/v3/index.json` に publish されます。
 - `develop` に到達可能で `main` には到達不能な tag 対象 commit は `https://apiint.nugettest.org/v3/index.json` に publish されます。
 - publish は GitHub Actions Trusted Publishing と `NuGet/login@v1`、repository secret `NUGET_USER` を使います。
 - publish 時の pack step では、生成物による version の意図しない繰り上がりを防ぐため、`RelaxVersioner` の working-directory dirty check を無効化します。
 - publish workflow は upload 前に、生成された `.nupkg` のファイル名が release tag の version と一致することを検証します。
+- 安定版 release の文書更新では、`CHANGELOG.md` の `Unreleased` から対象 version section へ内容を移し、README の install 例も新 version に更新してください。
 
 ## 追加ドキュメント
 

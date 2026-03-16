@@ -24,7 +24,9 @@ Thanks for your interest in contributing to ResolutionGuard.NuGet.
 4. Run local checks:
    - `dotnet restore ResolutionGuard.NuGet.slnx`
    - `dotnet build ResolutionGuard.NuGet.slnx -c Release --no-restore`
-   - `dotnet run --project tests/ResolutionGuard.NuGet.Tests -c Release --no-build`
+   - `dotnet run --project tests/ResolutionGuard.NuGet.Tests -c Release --framework net8.0 --no-build`
+   - `dotnet run --project tests/ResolutionGuard.NuGet.Tests -c Release --framework net9.0 --no-build`
+   - `dotnet run --project tests/ResolutionGuard.NuGet.Tests -c Release --framework net10.0 --no-build`
    - `dotnet pack src/ResolutionGuard.NuGet.Package/ResolutionGuard.NuGet.Package.csproj -c Release --no-build -o artifacts`
 5. Submit a pull request with:
    - What changed
@@ -35,11 +37,13 @@ Thanks for your interest in contributing to ResolutionGuard.NuGet.
 ## Release and publishing notes
 
 - Release tags should use the format `v<major>.<minor>.<patch>`.
+- Stable releases should follow `develop -> main`, then create the release tag from the merge commit on `main`.
 - Tagged commits reachable from `main` publish to `https://api.nuget.org/v3/index.json`.
 - Tagged commits reachable from `develop` and not from `main` publish to `https://apiint.nugettest.org/v3/index.json`.
 - Publishing uses GitHub Actions Trusted Publishing with `NuGet/login@v1` and the repository secret `NUGET_USER`.
 - The publish-time pack step disables `RelaxVersioner` working-directory dirty checks so generated outputs do not silently bump the package version.
 - The publish workflow verifies that the generated `.nupkg` filename matches the release tag version before upload.
+- Stable-release documentation updates should include moving release notes from `Unreleased` to the concrete version section in `CHANGELOG.md` and updating the README install snippet to the new package version.
 
 ## Additional docs
 
