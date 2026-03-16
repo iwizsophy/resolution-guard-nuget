@@ -76,9 +76,11 @@ jobs:
 
       - name: Pack
         run: |
+          # Ignore generated outputs so RelaxVersioner resolves the tagged version deterministically.
           dotnet pack src/ResolutionGuard.NuGet.Package/ResolutionGuard.NuGet.Package.csproj \
             -c Release \
             --no-restore \
+            -p:RelaxVersionerCheckWorkingDirectoryStatus=false \
             -o artifacts
 
       - name: Verify version resolved from tag
