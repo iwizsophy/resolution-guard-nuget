@@ -10,15 +10,29 @@
 - `dotnet restore`、`dotnet build`、`dotnet pack` を実行できること
 - `netstandard2.0` を対象とする Task アセンブリを含むパッケージを利用できること
 
-このリポジトリでは、IDE や SDK のバージョンごとの対応表は維持していません。
+現在の CI では、.NET 8 / 9 / 10 の SDK / MSBuild host で build-time task の動作を検証しています。
+
+この検証範囲は IDE の完全な対応表より狭く、網羅的な互換性保証ではなく、現在のスモークテスト対象として扱います。
 
 ## ビルドとテスト
 
 ```powershell
 dotnet restore ResolutionGuard.NuGet.slnx
 dotnet build ResolutionGuard.NuGet.slnx -c Release --no-restore
-dotnet run --project tests/ResolutionGuard.NuGet.Tests -c Release
+dotnet run --project tests/ResolutionGuard.NuGet.Tests -c Release --framework net8.0 --no-build
+dotnet run --project tests/ResolutionGuard.NuGet.Tests -c Release --framework net9.0 --no-build
+dotnet run --project tests/ResolutionGuard.NuGet.Tests -c Release --framework net10.0 --no-build
 ```
+
+CI の host-validation job を単一の SDK / MSBuild host で再現するには、clean tree 上で次を実行します。
+
+```powershell
+dotnet run --project tests/ResolutionGuard.NuGet.Tests -c Release --framework net8.0 -p:ResolutionGuardTestTargetFrameworks=net8.0
+dotnet run --project tests/ResolutionGuard.NuGet.Tests -c Release --framework net9.0 -p:ResolutionGuardTestTargetFrameworks=net9.0
+dotnet run --project tests/ResolutionGuard.NuGet.Tests -c Release --framework net10.0 -p:ResolutionGuardTestTargetFrameworks=net10.0
+```
+
+`ResolutionGuardTestTargetFrameworks` は test 専用プロパティで、smoke-test project を単一の target framework に絞り、host ごとの検証で restore assets を分離します。
 
 ## ローカルでの pack
 

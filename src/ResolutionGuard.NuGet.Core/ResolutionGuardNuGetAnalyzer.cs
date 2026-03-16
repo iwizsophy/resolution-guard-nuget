@@ -158,7 +158,7 @@ public static class ResolutionGuardNuGetAnalyzer
     {
         string marker = $"{System.IO.Path.DirectorySeparatorChar}obj{System.IO.Path.DirectorySeparatorChar}";
         string normalized = path.Replace(System.IO.Path.AltDirectorySeparatorChar, System.IO.Path.DirectorySeparatorChar);
-        return normalized.Contains(marker, StringComparison.OrdinalIgnoreCase);
+        return normalized.IndexOf(marker, StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     private sealed class ProjectDescriptorComparer : IEqualityComparer<ProjectDescriptor>

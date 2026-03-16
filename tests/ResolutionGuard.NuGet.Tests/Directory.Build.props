@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'ResolutionGuard.NuGet.Tests' and '$(ResolutionGuardTestTargetFrameworks)' != ''">
+    <ResolutionGuardTestTargetFrameworkPath>$([System.String]::Copy('$(ResolutionGuardTestTargetFrameworks)').Replace(';', '_'))</ResolutionGuardTestTargetFrameworkPath>
+    <MSBuildProjectExtensionsPath>obj\host-validation\$(ResolutionGuardTestTargetFrameworkPath)\</MSBuildProjectExtensionsPath>
+  </PropertyGroup>
+</Project>

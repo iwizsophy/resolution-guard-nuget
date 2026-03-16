@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Xml.Linq;
 
 var CachedJsonSerializerOptions = new JsonSerializerOptions { WriteIndented = true };
+var CurrentTestTargetFramework = GetCurrentTestTargetFramework();
 
 var failures = 0;
 
@@ -75,6 +76,19 @@ void RunTest(string name, Action test)
         failures++;
         Console.Error.WriteLine($"[FAIL] {name}: {ex.Message}");
     }
+}
+
+string GetCurrentTestTargetFramework()
+{
+#if NET10_0
+    return "net10.0";
+#elif NET9_0
+    return "net9.0";
+#elif NET8_0
+    return "net8.0";
+#else
+    throw new InvalidOperationException("Unsupported test target framework.");
+#endif
 }
 
 void TestTaskDisabledLogsMessage()
@@ -1629,14 +1643,14 @@ string WriteProjectAssetsDetailedWithOptions(
         {
             targetLibrary["runtime"] = new Dictionary<string, object?>
             {
-                [$"lib/net8.0/{package.PackageId}.dll"] = new Dictionary<string, object?>(),
+                [$"lib/{CurrentTestTargetFramework}/{package.PackageId}.dll"] = new Dictionary<string, object?>(),
             };
         }
         else
         {
             targetLibrary["compile"] = new Dictionary<string, object?>
             {
-                [$"ref/net8.0/{package.PackageId}.dll"] = new Dictionary<string, object?>(),
+                [$"ref/{CurrentTestTargetFramework}/{package.PackageId}.dll"] = new Dictionary<string, object?>(),
             };
         }
 
@@ -1662,7 +1676,7 @@ string WriteProjectAssetsDetailedWithOptions(
 
     projectNode["frameworks"] = new Dictionary<string, object?>
     {
-        ["net8.0"] = new Dictionary<string, object?>
+        [CurrentTestTargetFramework] = new Dictionary<string, object?>
         {
             ["dependencies"] = directDependencies,
         },
@@ -1679,7 +1693,7 @@ string WriteProjectAssetsDetailedWithOptions(
     {
         jsonModel["targets"] = new Dictionary<string, object?>
         {
-            ["net8.0"] = targetLibraries,
+            [CurrentTestTargetFramework] = targetLibraries,
         };
     }
 
@@ -1746,10 +1760,10 @@ MsBuildIntegrationFixture CreateMsBuildIntegrationFixture(string root, string in
 
     File.WriteAllText(
         packageProjectPath,
-        """
+        $"""
         <Project Sdk="Microsoft.NET.Sdk">
           <PropertyGroup>
-            <TargetFramework>net8.0</TargetFramework>
+            <TargetFramework>{CurrentTestTargetFramework}</TargetFramework>
             <ImplicitUsings>enable</ImplicitUsings>
             <Nullable>enable</Nullable>
           </PropertyGroup>
@@ -1873,7 +1887,7 @@ void WriteMsBuildIntegrationProjectFile(
         <Project Sdk="Microsoft.NET.Sdk">
           {(enableGuard ? $"<Import Project=\"{EscapeXml(buildTransitiveProps)}\" />" : string.Empty)}
           <PropertyGroup>
-            <TargetFramework>net8.0</TargetFramework>
+            <TargetFramework>{CurrentTestTargetFramework}</TargetFramework>
             <ImplicitUsings>enable</ImplicitUsings>
             <Nullable>enable</Nullable>
             {(enableGuard ? "<ResolutionGuardNuGetEnabled>true</ResolutionGuardNuGetEnabled>" : string.Empty)}

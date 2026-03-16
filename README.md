@@ -36,7 +36,9 @@ It is intended for SDK-style .NET build environments that:
 - support MSBuild task execution
 - can consume packages whose task assemblies target `netstandard2.0`
 
-This repository does not maintain a version-by-version IDE or SDK support matrix.
+Current CI validates build-time task behavior with .NET SDK / MSBuild hosts from .NET 8, 9, and 10.
+
+That validation scope describes the repository's current smoke-test coverage. It is not an exhaustive IDE or SDK support matrix.
 
 ## Install
 

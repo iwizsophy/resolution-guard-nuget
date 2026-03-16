@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
+## [Unreleased]
+
+### Added
+
+- CI smoke-test coverage now validates build-time task behavior against .NET SDK / MSBuild hosts for .NET 8, 9, and 10.
+
+### Changed
+
+- The smoke-test project now multi-targets `net8.0`, `net9.0`, and `net10.0`, and its integration fixtures generate projects and `project.assets.json` content for the current test target framework instead of assuming `net8.0`.
+- README and development guides now distinguish the shipped package target (`netstandard2.0`) from the repository's current validated SDK / host coverage (`8 / 9 / 10`).
+
+### Fixed
+
+- `netstandard2.0` analyzer code now avoids newer string APIs that prevented builds under .NET SDK 8 / 9 hosts.
+
+### Removed
+
+- _None_
+
 ## [1.2.0] - Released
 
 ### Added
