@@ -11,7 +11,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       id-token: write
 
     steps:
@@ -58,12 +58,16 @@ jobs:
             AUDIENCE="https://www.nuget.org"
             TOKEN_SERVICE_URL="https://www.nuget.org/api/v2/token"
             TARGET="nuget.org"
+            PRERELEASE="false"
+            LATEST="true"
           elif git merge-base --is-ancestor "${TAG_COMMIT}" "origin/develop"; then
             # nugettest.org: feed(host=apiint) と OIDC token exchange(host=int) は別
             SOURCE="https://apiint.nugettest.org/v3/index.json"
             AUDIENCE="https://int.nugettest.org"
             TOKEN_SERVICE_URL="https://int.nugettest.org/api/v2/token"
             TARGET="nugettest.org"
+            PRERELEASE="true"
+            LATEST="false"
           else
             echo "Tag commit ${TAG_COMMIT} is not contained in main/develop." >&2
             exit 1
@@ -74,6 +78,9 @@ jobs:
           echo "audience=${AUDIENCE}" >> "${GITHUB_OUTPUT}"
           echo "token_service_url=${TOKEN_SERVICE_URL}" >> "${GITHUB_OUTPUT}"
           echo "target=${TARGET}" >> "${GITHUB_OUTPUT}"
+          echo "prerelease=${PRERELEASE}" >> "${GITHUB_OUTPUT}"
+          echo "latest=${LATEST}" >> "${GITHUB_OUTPUT}"
+          echo "release_title=ResolutionGuard.NuGet ${EXPECTED_VERSION}" >> "${GITHUB_OUTPUT}"
 
       - name: Pack
         run: |
@@ -96,6 +103,27 @@ jobs:
             exit 1
           fi
 
+      - name: Extract release notes from changelog
+        id: release_notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ steps.publish_settings.outputs.expected_version }}"
+          notes_file="${RUNNER_TEMP}/release-notes-${version}.md"
+
+          awk -v version="${version}" '
+            $0 ~ "^## \\[" version "\\]" { in_section=1; next }
+            in_section && $0 ~ "^## \\[" { exit }
+            in_section { print }
+          ' CHANGELOG.md > "${notes_file}"
+
+          if ! grep -q '[^[:space:]]' "${notes_file}"; then
+            echo "No changelog section found for version ${version} in CHANGELOG.md." >&2
+            exit 1
+          fi
+
+          echo "notes_file=${notes_file}" >> "${GITHUB_OUTPUT}"
+
       - name: Authenticate to publish target (Trusted Publishing)
         id: nuget_login
         uses: NuGet/login@v1
@@ -110,3 +138,34 @@ jobs:
             --source "${{ steps.publish_settings.outputs.source }}" \
             --api-key "${{ steps.nuget_login.outputs.NUGET_API_KEY }}" \
             --skip-duplicate
+
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          title="${{ steps.publish_settings.outputs.release_title }}"
+          notes_file="${{ steps.release_notes.outputs.notes_file }}"
+          prerelease="${{ steps.publish_settings.outputs.prerelease }}"
+          latest="${{ steps.publish_settings.outputs.latest }}"
+
+          if gh release view "${tag}" >/dev/null 2>&1; then
+            cmd=(gh release edit "${tag}" --title "${title}" --notes-file "${notes_file}")
+            if [[ "${prerelease}" == "true" ]]; then
+              cmd+=(--prerelease)
+            elif [[ "${latest}" == "true" ]]; then
+              cmd+=(--latest)
+            fi
+            "${cmd[@]}"
+            exit 0
+          fi
+
+          cmd=(gh release create "${tag}" --verify-tag --title "${title}" --notes-file "${notes_file}")
+          if [[ "${prerelease}" == "true" ]]; then
+            cmd+=(--prerelease --latest=false)
+          elif [[ "${latest}" == "true" ]]; then
+            cmd+=(--latest)
+          fi
+          "${cmd[@]}"
