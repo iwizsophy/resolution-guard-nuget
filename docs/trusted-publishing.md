@@ -14,7 +14,7 @@ Use NuGet Trusted Publishing with GitHub Actions and OpenID Connect instead of l
 4. Add this GitHub repository as a Trusted Publisher for the `int.nugettest.org` package if `develop` publishes are enabled.
 5. Register the workflow file name `publish.yml` in the Trusted Publishing policy. Do not include the `.github/workflows/` prefix.
 6. Configure the repository secret `NUGET_USER` with the account name that can publish the package.
-7. Ensure `.github/workflows/publish.yml` keeps `permissions.id-token: write`.
+7. Ensure `.github/workflows/publish.yml` keeps `permissions.id-token: write` and `permissions.contents: write`.
 8. Create and push a release tag using the format `v<major>.<minor>.<patch>`, for example `v1.2.3`.
 9. Package and assembly versions are resolved from git tags by `RelaxVersioner`.
 
@@ -31,6 +31,9 @@ Use NuGet Trusted Publishing with GitHub Actions and OpenID Connect instead of l
 - Build runs before publish-time pack.
 - The publish-time pack step disables `RelaxVersioner` working-directory dirty checks so generated build outputs do not silently bump the package version.
 - The workflow verifies that the generated `.nupkg` filename matches the release tag version before upload.
+- After a successful package push, the workflow creates or updates the matching GitHub Release from the corresponding `CHANGELOG.md` version section.
+- Tags from `main` create a normal GitHub Release and are marked as latest.
+- Tags from `develop` create a GitHub pre-release so test-feed publishes do not appear as the latest stable release.
 
 ## Stable release flow
 
@@ -41,11 +44,12 @@ Use this sequence for a nuget.org release such as `v1.3.0`.
 3. Update the README install snippet to the release version.
 4. Open and merge the release pull request from `develop` to `main`.
 5. Create the release tag from the merge commit on `main`, for example `git tag v1.3.0` followed by `git push origin v1.3.0`.
-6. Confirm that the publish workflow resolves the package version from the tag and targets nuget.org.
+6. Confirm that the publish workflow resolves the package version from the tag, targets nuget.org, and publishes the matching GitHub Release notes from `CHANGELOG.md`.
 
 ## Release checklist
 
 - `CHANGELOG.md` updated
+- matching version section present in `CHANGELOG.md` for the release tag
 - `README.md` and `README.ja.md` install snippets updated to the release version
 - English and Japanese docs reviewed for sync
 - `THIRD-PARTY-NOTICES.md` updated when dependency changes are included
