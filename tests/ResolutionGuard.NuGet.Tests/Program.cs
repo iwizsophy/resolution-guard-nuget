@@ -17,22 +17,34 @@ RunTest("task emit success message logs summary", TestTaskEmitSuccessMessageLogs
 RunTest("task invalid emit success message warns and stays quiet", TestTaskInvalidEmitSuccessMessageWarnsAndStaysQuiet);
 RunTest("task warning mode logs and succeeds", TestTaskWarningModeLogsAndSucceeds);
 RunTest("task error mode logs and fails", TestTaskErrorModeLogsAndFails);
+RunTest("task included package ids allowlist", TestTaskIncludedPackageIdsAllowlist);
+RunTest("task solution scope warns when projects are unrestored", TestTaskSolutionScopeWarnsWhenProjectsAreUnrestored);
 RunTest("msbuild integration uses solution path default", TestMsBuildIntegrationUsesSolutionPathDefault);
+RunTest("msbuild integration included entrypoints override", TestMsBuildIntegrationIncludedEntrypointsOverride);
 RunTest("msbuild integration emits success message when enabled", TestMsBuildIntegrationEmitsSuccessMessageWhenEnabled);
 RunTest("analyzer disabled returns empty", TestAnalyzerDisabledReturnsEmpty);
 RunTest("analyzer missing repository root reports diagnostic", TestAnalyzerMissingRepositoryRootReportsDiagnostic);
 RunTest("analyzer parse failure reports diagnostic", TestAnalyzerParseFailureReportsDiagnostic);
+RunTest("included entrypoints allowlist", TestIncludedEntrypointsAllowlist);
+RunTest("included entrypoints exclude wins", TestIncludedEntrypointsExcludeWins);
 RunTest("excluded package ids blacklist", TestExcludedPackageIds);
+RunTest("excluded package ids ignore casing", TestExcludedPackageIdsIgnoreCasing);
+RunTest("included package ids allowlist", TestIncludedPackageIdsAllowlist);
+RunTest("included package ids exclude wins", TestIncludedPackageIdsExcludeWins);
 RunTest("direct only filters transitive", TestDirectOnlyFiltersTransitive);
 RunTest("runtime only filters non-runtime packages", TestRuntimeOnlyFiltersNonRuntimePackages);
 RunTest("runtime only without targets treats packages as runtime", TestRuntimeOnlyWithoutTargetsTreatsPackagesAsRuntime);
 RunTest("project path fallback infers csproj", TestProjectPathFallbackInfersCsproj);
 RunTest("solution scope filters non-solution projects", TestSolutionScopeFiltersNonSolutionProjects);
+RunTest("solution scope warns when projects are unrestored", TestSolutionScopeWarnsWhenProjectsAreUnrestored);
+RunTest("solution scope missing assets ignores excluded entrypoints", TestSolutionScopeMissingAssetsIgnoresExcludedEntrypoints);
 RunTest("excluded entrypoints blacklist", TestExcludedEntrypoints);
 RunTest("rule off suppresses mismatch", TestRuleOffSuppressesMismatch);
 RunTest("rule mode override", TestRuleModeOverride);
+RunTest("rule matching ignores package id casing", TestRuleMatchingIgnoresPackageIdCasing);
 RunTest("rule versions allow listed", TestRuleVersionsAllowListed);
 RunTest("rule versions detect out-of-rule versions", TestRuleVersionsOutOfRule);
+RunTest("package aggregation ignores package id casing", TestPackageAggregationIgnoresPackageIdCasing);
 RunTest("resolver solution scope loads slnx projects", TestResolverSolutionScopeLoadsSlnxProjects);
 RunTest("resolver solution scope loads sln projects", TestResolverSolutionScopeLoadsSlnProjects);
 RunTest("resolver solution scope no file falls back", TestResolverSolutionScopeNoFileFallsBack);
@@ -41,7 +53,10 @@ RunTest("resolver solution scope unsupported file falls back", TestResolverSolut
 RunTest("resolver solution scope malformed file falls back", TestResolverSolutionScopeMalformedFileFallsBack);
 RunTest("resolver discovers config in parent", TestResolverDiscoversConfigInParent);
 RunTest("resolver discovers git repository root", TestResolverDiscoversGitRepositoryRoot);
+RunTest("resolver include entrypoints", TestResolverIncludeEntrypoints);
 RunTest("resolver exclude package ids", TestResolverExcludePackageIds);
+RunTest("resolver include package ids", TestResolverIncludePackageIds);
+RunTest("resolver package id collections ignore casing", TestResolverPackageIdCollectionsIgnoreCasing);
 RunTest("resolver config scope applies", TestResolverConfigScopeApplies);
 RunTest("resolver invalid mode reports diagnostics", TestResolverInvalidModeReportsDiagnostics);
 RunTest("resolver invalid boolean overrides report diagnostics", TestResolverInvalidBooleanOverridesReportDiagnostics);
@@ -53,6 +68,7 @@ RunTest("resolver scope override", TestResolverScopeOverride);
 RunTest("resolver invalid scope reports diagnostics", TestResolverInvalidScopeReportsDiagnostics);
 RunTest("resolver direct/runtime empty overrides keep config", TestResolverDirectRuntimeEmptyOverridesKeepConfig);
 RunTest("resolver mode empty override keeps config", TestResolverModeEmptyOverrideKeepsConfig);
+RunTest("resolver includes empty overrides keep config", TestResolverIncludesEmptyOverridesKeepConfig);
 RunTest("resolver excludes empty overrides keep config", TestResolverExcludesEmptyOverridesKeepConfig);
 
 if (failures > 0)
@@ -283,6 +299,89 @@ void TestTaskErrorModeLogsAndFails()
     }
 }
 
+void TestTaskIncludedPackageIdsAllowlist()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        WriteProjectAssets(
+            root,
+            "src/AppA/AppA.csproj",
+            ("Tracked.Package", "1.0.0"),
+            ("Ignored.Package", "1.0.0"));
+        WriteProjectAssets(
+            root,
+            "src/AppB/AppB.csproj",
+            ("Tracked.Package", "1.0.0"),
+            ("Ignored.Package", "2.0.0"));
+
+        RecordingBuildEngine buildEngine = new();
+        ResolutionGuardNuGetTask task = new()
+        {
+            BuildEngine = buildEngine,
+            Enabled = "true",
+            IncludedPackageIds = "Tracked.Package",
+            RepositoryRoot = root,
+            ProjectDirectory = root,
+        };
+
+        bool succeeded = task.Execute();
+
+        Expect(succeeded, "Task should succeed when mismatches exist only outside includePackageIds.");
+        Expect(buildEngine.Errors.Count == 0, "Task should not log errors for excluded package mismatches.");
+        Expect(buildEngine.Warnings.Count == 0, "Task should stay quiet when included packages have no mismatches.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestTaskSolutionScopeWarnsWhenProjectsAreUnrestored()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        WriteProjectAssets(root, "src/AppA/AppA.csproj", ("Example.Scope", "1.0.0"));
+        EnsureProjectFile(root, "src/AppB/AppB.csproj");
+
+        string solutionPath = Path.Combine(root, "Repo.slnx");
+        File.WriteAllText(
+            solutionPath,
+            """
+            <Solution>
+              <Project Path="src/AppA/AppA.csproj" />
+              <Project Path="src/AppB/AppB.csproj" />
+            </Solution>
+            """);
+
+        RecordingBuildEngine buildEngine = new();
+        ResolutionGuardNuGetTask task = new()
+        {
+            BuildEngine = buildEngine,
+            Enabled = "true",
+            ScopeOverride = "solution",
+            SolutionFile = solutionPath,
+            RepositoryRoot = root,
+            ProjectDirectory = root,
+        };
+
+        bool succeeded = task.Execute();
+
+        Expect(succeeded, "Task should succeed when only a missing-assets warning is reported.");
+        Expect(
+            buildEngine.Warnings.Any(x =>
+                x.Contains("restored subset", StringComparison.OrdinalIgnoreCase)
+                && x.Contains("AppB.csproj", StringComparison.OrdinalIgnoreCase)),
+            "Task should warn when a solution project has no project.assets.json.");
+        Expect(buildEngine.Errors.Count == 0, "Missing assets warning should not fail the task.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
 void TestMsBuildIntegrationUsesSolutionPathDefault()
 {
     string root = CreateTempRoot();
@@ -313,6 +412,31 @@ void TestMsBuildIntegrationUsesSolutionPathDefault()
         Expect(
             File.Exists(fixture.AppBAssetsPath),
             "Out-of-solution project assets should exist so the success case proves solution filtering.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestMsBuildIntegrationIncludedEntrypointsOverride()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        MsBuildIntegrationFixture fixture = CreateMsBuildIntegrationFixture(root, initialScope: "repository");
+        SetMsBuildIntegrationIncludedEntrypoints(fixture.AppAProjectPath, "src/AppA/AppA.csproj");
+
+        CommandResult result = RunDotNet(
+            $"build \"{fixture.SolutionFilePath}\" --nologo -v:minimal",
+            root);
+
+        Expect(
+            result.Succeeded,
+            $"Repository-scoped build should succeed when included entrypoints narrow analysis to AppA.{Environment.NewLine}{result.Output}");
+        Expect(
+            !result.Output.Contains("ResolutionGuard.NuGet mismatch", StringComparison.OrdinalIgnoreCase),
+            $"Included entrypoints override should suppress the out-of-scope mismatch.{Environment.NewLine}{result.Output}");
     }
     finally
     {
@@ -443,6 +567,51 @@ void TestAnalyzerParseFailureReportsDiagnostic()
     }
 }
 
+void TestIncludedEntrypointsAllowlist()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        string appA = WriteProjectAssets(root, "src/AppA/AppA.csproj", ("Example.Allow", "1.0.0"));
+        WriteProjectAssets(root, "src/AppB/AppB.csproj", ("Example.Allow", "2.0.0"));
+
+        GuardSettings settings = CreateSettings(
+            root,
+            mode: GuardMode.Error,
+            includedEntrypoints: [appA]);
+
+        GuardAnalysisResult result = ResolutionGuardNuGetAnalyzer.Analyze(settings);
+        Expect(result.Mismatches.Count == 0, "includeEntrypoints should narrow analysis to the selected project set.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestIncludedEntrypointsExcludeWins()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        string appA = WriteProjectAssets(root, "src/AppA/AppA.csproj", ("Example.Allow", "1.0.0"));
+        string appB = WriteProjectAssets(root, "src/AppB/AppB.csproj", ("Example.Allow", "2.0.0"));
+
+        GuardSettings settings = CreateSettings(
+            root,
+            mode: GuardMode.Error,
+            includedEntrypoints: [appA, appB],
+            excludedEntrypoints: [appB]);
+
+        GuardAnalysisResult result = ResolutionGuardNuGetAnalyzer.Analyze(settings);
+        Expect(result.Mismatches.Count == 0, "excludeEntrypoints should win over includeEntrypoints.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
 void TestExcludedPackageIds()
 {
     string root = CreateTempRoot();
@@ -458,6 +627,81 @@ void TestExcludedPackageIds()
 
         GuardAnalysisResult result = ResolutionGuardNuGetAnalyzer.Analyze(settings);
         Expect(result.Mismatches.Count == 0, "excludePackageIds should suppress mismatch.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestIncludedPackageIdsAllowlist()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        WriteProjectAssets(
+            root,
+            "src/AppA/AppA.csproj",
+            ("Tracked.Package", "1.0.0"),
+            ("Ignored.Package", "1.0.0"));
+        WriteProjectAssets(
+            root,
+            "src/AppB/AppB.csproj",
+            ("Tracked.Package", "1.0.0"),
+            ("Ignored.Package", "2.0.0"));
+
+        GuardSettings settings = CreateSettings(
+            root,
+            mode: GuardMode.Error,
+            includedPackageIds: ["Tracked.Package"]);
+
+        GuardAnalysisResult result = ResolutionGuardNuGetAnalyzer.Analyze(settings);
+        Expect(result.Mismatches.Count == 0, "includePackageIds should ignore mismatches outside the allowlist.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestIncludedPackageIdsExcludeWins()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        WriteProjectAssets(root, "src/AppA/AppA.csproj", ("Ignored.Package", "1.0.0"));
+        WriteProjectAssets(root, "src/AppB/AppB.csproj", ("Ignored.Package", "2.0.0"));
+
+        GuardSettings settings = CreateSettings(
+            root,
+            mode: GuardMode.Error,
+            includedPackageIds: ["Ignored.Package"],
+            excludedPackageIds: ["Ignored.Package"]);
+
+        GuardAnalysisResult result = ResolutionGuardNuGetAnalyzer.Analyze(settings);
+        Expect(result.Mismatches.Count == 0, "excludePackageIds should win over includePackageIds.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestExcludedPackageIdsIgnoreCasing()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        WriteProjectAssets(root, "src/AppA/AppA.csproj", ("Legacy.SDK", "1.0.0"));
+        WriteProjectAssets(root, "src/AppB/AppB.csproj", ("LEGACY.sdk", "2.0.0"));
+
+        GuardSettings settings = CreateSettings(
+            root,
+            mode: GuardMode.Error,
+            excludedPackageIds: ["legacy.sdk"]);
+
+        GuardAnalysisResult result = ResolutionGuardNuGetAnalyzer.Analyze(settings);
+        Expect(result.Mismatches.Count == 0, "excludePackageIds should ignore package ID casing.");
     }
     finally
     {
@@ -627,6 +871,60 @@ void TestSolutionScopeFiltersNonSolutionProjects()
     }
 }
 
+void TestSolutionScopeWarnsWhenProjectsAreUnrestored()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        string appA = WriteProjectAssets(root, "src/AppA/AppA.csproj", ("Example.Scope", "1.0.0"));
+        string appB = EnsureProjectFile(root, "src/AppB/AppB.csproj");
+
+        GuardSettings settings = CreateSettings(
+            root,
+            mode: GuardMode.Warning,
+            scope: GuardScope.Solution,
+            includedEntrypoints: [appA, appB]);
+
+        GuardAnalysisResult result = ResolutionGuardNuGetAnalyzer.Analyze(settings);
+        Expect(result.Mismatches.Count == 0, "A single restored solution project should not produce a mismatch.");
+        Expect(
+            result.Diagnostics.Any(x =>
+                x.Contains("restored subset", StringComparison.OrdinalIgnoreCase)
+                && x.Contains(appB, StringComparison.OrdinalIgnoreCase)),
+            "solution scope should warn when a listed project has no project.assets.json.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestSolutionScopeMissingAssetsIgnoresExcludedEntrypoints()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        string appA = WriteProjectAssets(root, "src/AppA/AppA.csproj", ("Example.Scope", "1.0.0"));
+        string appB = EnsureProjectFile(root, "src/AppB/AppB.csproj");
+
+        GuardSettings settings = CreateSettings(
+            root,
+            mode: GuardMode.Warning,
+            scope: GuardScope.Solution,
+            includedEntrypoints: [appA, appB],
+            excludedEntrypoints: [appB]);
+
+        GuardAnalysisResult result = ResolutionGuardNuGetAnalyzer.Analyze(settings);
+        Expect(
+            !result.Diagnostics.Any(x => x.Contains("restored subset", StringComparison.OrdinalIgnoreCase)),
+            "Excluded solution entrypoints should not trigger missing-assets warnings.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
 void TestRuleOffSuppressesMismatch()
 {
     string root = CreateTempRoot();
@@ -638,7 +936,7 @@ void TestRuleOffSuppressesMismatch()
         GuardSettings settings = CreateSettings(
             root,
             mode: GuardMode.Warning,
-            rules: new Dictionary<string, GuardRule>(GuardPathComparer.StringComparer)
+            rules: new Dictionary<string, GuardRule>(GuardPackageIdComparer.StringComparer)
             {
                 ["Suppressed.Package"] = CreateRule(GuardMode.Off),
             });
@@ -663,7 +961,7 @@ void TestRuleModeOverride()
         GuardSettings settings = CreateSettings(
             root,
             mode: GuardMode.Warning,
-            rules: new Dictionary<string, GuardRule>(GuardPathComparer.StringComparer)
+            rules: new Dictionary<string, GuardRule>(GuardPackageIdComparer.StringComparer)
             {
                 ["Newtonsoft.Json"] = CreateRule(GuardMode.Error),
             });
@@ -671,6 +969,32 @@ void TestRuleModeOverride()
         GuardAnalysisResult result = ResolutionGuardNuGetAnalyzer.Analyze(settings);
         Expect(result.Mismatches.Count == 1, "Expected one mismatch.");
         Expect(result.Mismatches[0].Mode == GuardMode.Error, "Rule mode should be error.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestRuleMatchingIgnoresPackageIdCasing()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        WriteProjectAssets(root, "src/AppA/AppA.csproj", ("Newtonsoft.Json", "12.0.0"));
+        WriteProjectAssets(root, "src/AppB/AppB.csproj", ("newtonsoft.json", "13.0.0"));
+
+        GuardSettings settings = CreateSettings(
+            root,
+            mode: GuardMode.Warning,
+            rules: new Dictionary<string, GuardRule>(GuardPackageIdComparer.StringComparer)
+            {
+                ["NEWTONSOFT.JSON"] = CreateRule(GuardMode.Error),
+            });
+
+        GuardAnalysisResult result = ResolutionGuardNuGetAnalyzer.Analyze(settings);
+        Expect(result.Mismatches.Count == 1, "Expected one mismatch.");
+        Expect(result.Mismatches[0].Mode == GuardMode.Error, "Rule lookup should ignore package ID casing.");
     }
     finally
     {
@@ -689,7 +1013,7 @@ void TestRuleVersionsAllowListed()
         GuardSettings settings = CreateSettings(
             root,
             mode: GuardMode.Warning,
-            rules: new Dictionary<string, GuardRule>(GuardPathComparer.StringComparer)
+            rules: new Dictionary<string, GuardRule>(GuardPackageIdComparer.StringComparer)
             {
                 ["Plugin.SDK"] = CreateRule(GuardMode.Error, "1.0.0", "2.0.0"),
             });
@@ -714,7 +1038,7 @@ void TestRuleVersionsOutOfRule()
         GuardSettings settings = CreateSettings(
             root,
             mode: GuardMode.Warning,
-            rules: new Dictionary<string, GuardRule>(GuardPathComparer.StringComparer)
+            rules: new Dictionary<string, GuardRule>(GuardPackageIdComparer.StringComparer)
             {
                 ["Plugin.SDK"] = CreateRule(GuardMode.Error, "1.0.0", "2.0.0"),
             });
@@ -722,6 +1046,28 @@ void TestRuleVersionsOutOfRule()
         GuardAnalysisResult result = ResolutionGuardNuGetAnalyzer.Analyze(settings);
         Expect(result.Mismatches.Count == 1, "Unlisted versions should follow the rule mode.");
         Expect(result.Mismatches[0].Mode == GuardMode.Error, "Rule mode should apply to unlisted versions.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestPackageAggregationIgnoresPackageIdCasing()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        WriteProjectAssets(root, "src/AppA/AppA.csproj", ("Plugin.SDK", "1.0.0"));
+        WriteProjectAssets(root, "src/AppB/AppB.csproj", ("plugin.sdk", "2.0.0"));
+
+        GuardSettings settings = CreateSettings(
+            root,
+            mode: GuardMode.Warning);
+
+        GuardAnalysisResult result = ResolutionGuardNuGetAnalyzer.Analyze(settings);
+        Expect(result.Mismatches.Count == 1, "Package aggregation should treat package IDs case-insensitively.");
+        Expect(result.Mismatches[0].VersionMap.Count == 2, "Both versions should be aggregated into the same mismatch.");
     }
     finally
     {
@@ -1031,6 +1377,48 @@ void TestResolverDiscoversGitRepositoryRoot()
     }
 }
 
+void TestResolverIncludeEntrypoints()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        string configPath = Path.Combine(root, "nuget-resolution-guard.json");
+        EnsureProjectFile(root, "src/AppA/AppA.csproj");
+        string appB = EnsureProjectFile(root, "src/AppB/AppB.csproj");
+
+        File.WriteAllText(
+            configPath,
+            """
+            {
+              "includeEntrypoints": [ "src/AppA/AppA.csproj" ]
+            }
+            """);
+
+        GuardSettingsResolution resolved = GuardSettingsResolver.Resolve(
+            projectDirectory: root,
+            repositoryRootOverride: root,
+            configFileOverride: configPath,
+            modeOverride: null,
+            directOnlyOverride: null,
+            runtimeOnlyOverride: null,
+            enabledOverride: "true",
+            excludedEntrypointsOverride: null,
+            excludedPackageIdsOverride: null,
+            includedEntrypointsOverride: "src/AppB/AppB.csproj");
+
+        Expect(
+            resolved.Settings.IncludedEntrypoints.Contains(appB),
+            "includeEntrypoints override should replace the config list.");
+        Expect(
+            resolved.Settings.IncludedEntrypoints.Count == 1,
+            "includeEntrypoints override should leave only the override paths.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
 void TestResolverExcludePackageIds()
 {
     string root = CreateTempRoot();
@@ -1062,6 +1450,97 @@ void TestResolverExcludePackageIds()
         Expect(
             !resolved.Settings.ExcludedPackageIds.Contains("Package.FromConfig"),
             "exclude package ids override should replace config list.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestResolverIncludePackageIds()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        string configPath = Path.Combine(root, "nuget-resolution-guard.json");
+        File.WriteAllText(
+            configPath,
+            """
+            {
+              "includePackageIds": [ "Package.FromConfig" ]
+            }
+            """);
+
+        GuardSettingsResolution resolved = GuardSettingsResolver.Resolve(
+            projectDirectory: root,
+            repositoryRootOverride: root,
+            configFileOverride: configPath,
+            modeOverride: null,
+            directOnlyOverride: null,
+            runtimeOnlyOverride: null,
+            enabledOverride: "true",
+            excludedEntrypointsOverride: null,
+            excludedPackageIdsOverride: null,
+            includedPackageIdsOverride: "Package.FromProperty");
+
+        Expect(
+            resolved.Settings.IncludedPackageIds.Contains("Package.FromProperty"),
+            "include package ids override should apply as an allowlist.");
+        Expect(
+            !resolved.Settings.IncludedPackageIds.Contains("Package.FromConfig"),
+            "include package ids override should replace the config list.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestResolverPackageIdCollectionsIgnoreCasing()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        string configPath = Path.Combine(root, "nuget-resolution-guard.json");
+        File.WriteAllText(
+            configPath,
+            """
+            {
+              "includePackageIds": [ "Package.FromAllowlist" ],
+              "excludePackageIds": [ "Package.FromConfig" ],
+              "rules": [
+                {
+                  "packageId": "Plugin.SDK",
+                  "mode": "error"
+                }
+              ]
+            }
+            """);
+
+        GuardSettingsResolution resolved = GuardSettingsResolver.Resolve(
+            projectDirectory: root,
+            repositoryRootOverride: root,
+            configFileOverride: configPath,
+            modeOverride: null,
+            directOnlyOverride: null,
+            runtimeOnlyOverride: null,
+            enabledOverride: "true",
+            excludedEntrypointsOverride: null,
+            excludedPackageIdsOverride: null);
+
+        Expect(
+            resolved.Settings.IncludedPackageIds.Contains("package.fromallowlist"),
+            "Resolved includePackageIds should ignore package ID casing.");
+        Expect(
+            resolved.Settings.ExcludedPackageIds.Contains("package.fromconfig"),
+            "Resolved excludePackageIds should ignore package ID casing.");
+        Expect(
+            resolved.Settings.IncludedPackageIds.Contains("PACKAGE.FROMALLOWLIST"),
+            "Resolved includePackageIds should preserve case-insensitive lookups.");
+        Expect(
+            resolved.Settings.Rules.TryGetValue("plugin.sdk", out GuardRule? rule),
+            "Resolved rules should ignore package ID casing.");
+        Expect(rule is not null && rule.Mode == GuardMode.Error, "Resolved rule mode should be preserved.");
     }
     finally
     {
@@ -1495,6 +1974,49 @@ void TestResolverModeEmptyOverrideKeepsConfig()
     }
 }
 
+void TestResolverIncludesEmptyOverridesKeepConfig()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        string configPath = Path.Combine(root, "nuget-resolution-guard.json");
+        string appA = EnsureProjectFile(root, "src/AppA/AppA.csproj");
+
+        File.WriteAllText(
+            configPath,
+            """
+            {
+              "includeEntrypoints": [ "src/AppA/AppA.csproj" ],
+              "includePackageIds": [ "Package.FromConfig" ]
+            }
+            """);
+
+        GuardSettingsResolution resolved = GuardSettingsResolver.Resolve(
+            projectDirectory: root,
+            repositoryRootOverride: root,
+            configFileOverride: configPath,
+            modeOverride: null,
+            directOnlyOverride: null,
+            runtimeOnlyOverride: null,
+            enabledOverride: "true",
+            excludedEntrypointsOverride: null,
+            excludedPackageIdsOverride: null,
+            includedEntrypointsOverride: "",
+            includedPackageIdsOverride: "");
+
+        Expect(
+            resolved.Settings.IncludedEntrypoints.Contains(appA),
+            "Empty includeEntrypoints override should not replace config.");
+        Expect(
+            resolved.Settings.IncludedPackageIds.Contains("Package.FromConfig"),
+            "Empty includePackageIds override should not replace config.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
 void TestResolverExcludesEmptyOverridesKeepConfig()
 {
     string root = CreateTempRoot();
@@ -1543,6 +2065,7 @@ GuardSettings CreateSettings(
     bool runtimeOnly = false,
     IEnumerable<string>? includedEntrypoints = null,
     IEnumerable<string>? excludedEntrypoints = null,
+    IEnumerable<string>? includedPackageIds = null,
     IEnumerable<string>? excludedPackageIds = null,
     IDictionary<string, GuardRule>? rules = null)
 {
@@ -1558,14 +2081,15 @@ GuardSettings CreateSettings(
         ConfigFilePath = null,
         IncludedEntrypoints = new HashSet<string>((includedEntrypoints ?? []).Select(Normalize), GuardPathComparer.StringComparer),
         ExcludedEntrypoints = new HashSet<string>((excludedEntrypoints ?? []).Select(Normalize), GuardPathComparer.StringComparer),
-        ExcludedPackageIds = new HashSet<string>(excludedPackageIds ?? [], GuardPathComparer.StringComparer),
+        IncludedPackageIds = new HashSet<string>(includedPackageIds ?? [], GuardPackageIdComparer.StringComparer),
+        ExcludedPackageIds = new HashSet<string>(excludedPackageIds ?? [], GuardPackageIdComparer.StringComparer),
         Rules = CloneRules(rules),
     };
 }
 
 IDictionary<string, GuardRule> CloneRules(IDictionary<string, GuardRule>? rules)
 {
-    Dictionary<string, GuardRule> result = new(GuardPathComparer.StringComparer);
+    Dictionary<string, GuardRule> result = new(GuardPackageIdComparer.StringComparer);
     if (rules is null)
     {
         return result;
@@ -1586,6 +2110,20 @@ GuardRule CreateRule(GuardMode mode, params string[] versions)
         Mode = mode,
         Versions = new HashSet<string>(versions ?? [], StringComparer.OrdinalIgnoreCase),
     };
+}
+
+string EnsureProjectFile(string root, string projectRelativePath)
+{
+    string projectPath = Normalize(Path.Combine(root, projectRelativePath));
+    string projectDirectory = Path.GetDirectoryName(projectPath) ?? throw new InvalidOperationException("Project directory missing.");
+    Directory.CreateDirectory(projectDirectory);
+
+    if (!File.Exists(projectPath))
+    {
+        File.WriteAllText(projectPath, "<Project Sdk=\"Microsoft.NET.Sdk\" />");
+    }
+
+    return projectPath;
 }
 
 string WriteProjectAssets(string root, string projectRelativePath, params (string PackageId, string Version)[] packages)
@@ -1841,6 +2379,11 @@ MsBuildIntegrationFixture CreateMsBuildIntegrationFixture(string root, string in
 void SetMsBuildIntegrationScope(string appAProjectPath, string scope)
 {
     SetMsBuildIntegrationProperty(appAProjectPath, "ResolutionGuardNuGetScope", scope);
+}
+
+void SetMsBuildIntegrationIncludedEntrypoints(string appAProjectPath, string value)
+{
+    SetMsBuildIntegrationProperty(appAProjectPath, "ResolutionGuardNuGetIncludedEntrypoints", value);
 }
 
 void SetMsBuildIntegrationEmitSuccessMessage(string appAProjectPath, string value)

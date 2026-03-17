@@ -10,7 +10,11 @@ public sealed class GuardConfigFile
 
     public bool? RuntimeOnly { get; set; }
 
+    public List<string>? IncludeEntrypoints { get; set; }
+
     public List<string>? ExcludeEntrypoints { get; set; }
+
+    public List<string>? IncludePackageIds { get; set; }
 
     public List<string>? ExcludePackageIds { get; set; }
 

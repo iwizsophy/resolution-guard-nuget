@@ -2,8 +2,16 @@
   "mode": "warning",
   "directOnly": false,
   "runtimeOnly": false,
+  "includeEntrypoints": [
+    "src/AppA/AppA.csproj",
+    "src/AppB/AppB.csproj"
+  ],
   "excludeEntrypoints": [
     "src/ExperimentalApp/ExperimentalApp.csproj"
+  ],
+  "includePackageIds": [
+    "Newtonsoft.Json",
+    "Plugin.SDK"
   ],
   "excludePackageIds": [
     "Microsoft.NETCore.App",

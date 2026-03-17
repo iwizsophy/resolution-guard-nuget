@@ -17,7 +17,9 @@
       Enabled="$(ResolutionGuardNuGetEnabled)"
       EmitSuccessMessage="$(ResolutionGuardNuGetEmitSuccessMessage)"
       SolutionFile="$(ResolutionGuardNuGetSolutionFile)"
+      IncludedEntrypoints="$(ResolutionGuardNuGetIncludedEntrypoints)"
       ExcludedEntrypoints="$(ResolutionGuardNuGetExcludedEntrypoints)"
+      IncludedPackageIds="$(ResolutionGuardNuGetIncludedPackageIds)"
       ExcludedPackageIds="$(ResolutionGuardNuGetExcludedPackageIds)"
       RepositoryRoot="$(ResolutionGuardNuGetRepositoryRoot)"
       ProjectDirectory="$(MSBuildProjectDirectory)" />

@@ -22,7 +22,11 @@ public sealed class ResolutionGuardNuGetTask : Microsoft.Build.Utilities.Task
 
     public string? SolutionFile { get; set; }
 
+    public string? IncludedEntrypoints { get; set; }
+
     public string? ExcludedEntrypoints { get; set; }
+
+    public string? IncludedPackageIds { get; set; }
 
     public string? ExcludedPackageIds { get; set; }
 
@@ -45,7 +49,9 @@ public sealed class ResolutionGuardNuGetTask : Microsoft.Build.Utilities.Task
             scopeOverride: ScopeOverride,
             enabledOverride: Enabled,
             solutionFileOverride: SolutionFile,
+            includedEntrypointsOverride: IncludedEntrypoints,
             excludedEntrypointsOverride: ExcludedEntrypoints,
+            includedPackageIdsOverride: IncludedPackageIds,
             excludedPackageIdsOverride: ExcludedPackageIds);
 
         foreach (string diagnostic in resolution.Diagnostics)
