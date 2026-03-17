@@ -235,6 +235,11 @@ internal static class ProjectAssetsReader
             }
         }
 
+        return InferProjectPathFromAssetsPath(assetsPath);
+    }
+
+    internal static string InferProjectPathFromAssetsPath(string assetsPath)
+    {
         string objDirectory = System.IO.Path.GetDirectoryName(assetsPath) ?? assetsPath;
         string projectDirectory = Directory.GetParent(objDirectory)?.FullName ?? objDirectory;
 
@@ -244,10 +249,10 @@ internal static class ProjectAssetsReader
 
         if (csprojFiles.Length == 1)
         {
-            return csprojFiles[0];
+            return NormalizePath(csprojFiles[0]);
         }
 
-        return System.IO.Path.Combine(projectDirectory, $"{new DirectoryInfo(projectDirectory).Name}.csproj");
+        return NormalizePath(System.IO.Path.Combine(projectDirectory, $"{new DirectoryInfo(projectDirectory).Name}.csproj"));
     }
 
     private static string NormalizePath(string path)

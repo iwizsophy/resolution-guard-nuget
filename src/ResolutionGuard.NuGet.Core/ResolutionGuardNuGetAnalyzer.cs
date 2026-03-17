@@ -31,8 +31,17 @@ public static class ResolutionGuardNuGetAnalyzer
             .EnumerateFiles(settings.RepositoryRoot, "project.assets.json", SearchOption.AllDirectories)
             .Where(IsObjAssetsPath)];
 
+        HashSet<string>? expectedSolutionEntrypoints = settings.Scope == GuardScope.Solution
+            ? new HashSet<string>(
+                settings.IncludedEntrypoints.Where(path => !settings.ExcludedEntrypoints.Contains(path)),
+                GuardPathComparer.StringComparer)
+            : null;
+        HashSet<string>? observedSolutionEntrypoints = expectedSolutionEntrypoints is null
+            ? null
+            : new HashSet<string>(GuardPathComparer.StringComparer);
+
         Dictionary<string, Dictionary<string, HashSet<ProjectDescriptor>>> packageVersionMap =
-            new(GuardPathComparer.StringComparer);
+            new(GuardPackageIdComparer.StringComparer);
 
         foreach (string assetsFile in assetsFiles)
         {
@@ -45,10 +54,13 @@ public static class ResolutionGuardNuGetAnalyzer
                     diagnostics.Add(diagnostic);
                 }
 
+                TrackObservedSolutionEntrypoint(expectedSolutionEntrypoints, observedSolutionEntrypoints, ProjectAssetsReader.InferProjectPathFromAssetsPath(assetsFile));
                 continue;
             }
 
-            if (settings.Scope == GuardScope.Solution
+            TrackObservedSolutionEntrypoint(expectedSolutionEntrypoints, observedSolutionEntrypoints, document.ProjectPath);
+
+            if (settings.IncludedEntrypoints.Count > 0
                 && !settings.IncludedEntrypoints.Contains(document.ProjectPath))
             {
                 continue;
@@ -69,6 +81,12 @@ public static class ResolutionGuardNuGetAnalyzer
             {
                 string packageId = package.PackageId;
                 string version = package.Version;
+
+                if (settings.IncludedPackageIds.Count > 0
+                    && !settings.IncludedPackageIds.Contains(packageId))
+                {
+                    continue;
+                }
 
                 if (settings.ExcludedPackageIds.Contains(packageId))
                 {
@@ -144,7 +162,19 @@ public static class ResolutionGuardNuGetAnalyzer
             });
         }
 
-        mismatches = [.. mismatches.OrderBy(m => m.PackageId, GuardPathComparer.StringComparer)];
+        if (expectedSolutionEntrypoints is not null && observedSolutionEntrypoints is not null)
+        {
+            List<string> missingEntrypoints = [.. expectedSolutionEntrypoints
+                .Where(path => !observedSolutionEntrypoints.Contains(path))
+                .OrderBy(path => path, GuardPathComparer.StringComparer)];
+
+            if (missingEntrypoints.Count > 0)
+            {
+                diagnostics.Add(FormatMissingSolutionAssetsDiagnostic(missingEntrypoints));
+            }
+        }
+
+        mismatches = [.. mismatches.OrderBy(m => m.PackageId, GuardPackageIdComparer.StringComparer)];
 
         return new GuardAnalysisResult
         {
@@ -159,6 +189,27 @@ public static class ResolutionGuardNuGetAnalyzer
         string marker = $"{System.IO.Path.DirectorySeparatorChar}obj{System.IO.Path.DirectorySeparatorChar}";
         string normalized = path.Replace(System.IO.Path.AltDirectorySeparatorChar, System.IO.Path.DirectorySeparatorChar);
         return normalized.IndexOf(marker, StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private static void TrackObservedSolutionEntrypoint(
+        ISet<string>? expectedSolutionEntrypoints,
+        ISet<string>? observedSolutionEntrypoints,
+        string projectPath)
+    {
+        if (expectedSolutionEntrypoints is null
+            || observedSolutionEntrypoints is null
+            || !expectedSolutionEntrypoints.Contains(projectPath))
+        {
+            return;
+        }
+
+        observedSolutionEntrypoints.Add(projectPath);
+    }
+
+    private static string FormatMissingSolutionAssetsDiagnostic(IReadOnlyList<string> missingEntrypoints)
+    {
+        string projectList = string.Join(", ", missingEntrypoints);
+        return $"ResolutionGuard.NuGet: solution scope analyzed only the restored subset. No corresponding project.assets.json was found for {missingEntrypoints.Count} project(s) listed in the solution: {projectList}.";
     }
 
     private sealed class ProjectDescriptorComparer : IEqualityComparer<ProjectDescriptor>

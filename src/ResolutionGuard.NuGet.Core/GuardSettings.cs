@@ -26,9 +26,11 @@ public sealed class GuardSettings
 
     public ISet<string> ExcludedEntrypoints { get; set; } = new HashSet<string>(GuardPathComparer.StringComparer);
 
-    public ISet<string> ExcludedPackageIds { get; set; } = new HashSet<string>(GuardPathComparer.StringComparer);
+    public ISet<string> IncludedPackageIds { get; set; } = new HashSet<string>(GuardPackageIdComparer.StringComparer);
 
-    public IDictionary<string, GuardRule> Rules { get; set; } = new Dictionary<string, GuardRule>(GuardPathComparer.StringComparer);
+    public ISet<string> ExcludedPackageIds { get; set; } = new HashSet<string>(GuardPackageIdComparer.StringComparer);
+
+    public IDictionary<string, GuardRule> Rules { get; set; } = new Dictionary<string, GuardRule>(GuardPackageIdComparer.StringComparer);
 }
 
 public sealed class GuardRule
@@ -51,4 +53,9 @@ public static class GuardPathComparer
         RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
             ? StringComparer.OrdinalIgnoreCase
             : StringComparer.Ordinal;
+}
+
+public static class GuardPackageIdComparer
+{
+    public static StringComparer StringComparer { get; } = StringComparer.OrdinalIgnoreCase;
 }

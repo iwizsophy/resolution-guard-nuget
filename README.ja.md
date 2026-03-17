@@ -78,8 +78,16 @@ MSBuild プロパティで上書きできます。
   "scope": "repository",
   "directOnly": false,
   "runtimeOnly": false,
+  "includeEntrypoints": [
+    "src/AppA/AppA.csproj",
+    "src/AppB/AppB.csproj"
+  ],
   "excludeEntrypoints": [
     "src/ExperimentalApp/ExperimentalApp.csproj"
+  ],
+  "includePackageIds": [
+    "Newtonsoft.Json",
+    "Plugin.SDK"
   ],
   "excludePackageIds": [
     "Microsoft.NETCore.App",
@@ -98,11 +106,14 @@ MSBuild プロパティで上書きできます。
 - `scope` は任意です（既定 `repository`）。`solution` を指定すると、現在の solution ファイルに含まれるプロジェクトだけを検査します。
 - `directOnly` は任意です（既定 `false`）。`true` の場合、直接参照されるパッケージのみを検査します。
 - `runtimeOnly` は任意です（既定 `false`）。`true` の場合、実行時アセットを持つパッケージのみを検査します。
-- `excludeEntrypoints` はエントリープロジェクトの除外リスト（ブラックリスト）です。
-- `excludePackageIds` は検査対象パッケージの除外リスト（ブラックリスト）です。
+- `includeEntrypoints` は任意のエントリープロジェクト許可リスト（allowlist）です。`scope=solution` の場合は solution に含まれるプロジェクト集合をさらに絞り込みます。
+- `excludeEntrypoints` はエントリープロジェクトの除外リスト（ブラックリスト）で、同じパスが include/exclude の両方にある場合は exclude が優先されます。
+- `includePackageIds` は任意の PackageId 許可リスト（allowlist）です。
+- `excludePackageIds` は検査対象パッケージの除外リスト（ブラックリスト）で、同じ PackageId が include/exclude の両方にある場合は exclude が優先されます。
 - `rules[].mode` はその PackageId に対して全体 `mode` を上書きします。
 - `rules[].versions` は任意です。列挙したバージョンは許容され、それ以外の解決バージョンに `rules[].mode` が適用されます。
 - `scope=solution` のときは既定で `$(SolutionPath)` を使います。solution ファイルが取得できない場合は warning を出して `repository` にフォールバックします。
+- `scope=solution` のとき、対応する `project.assets.json` がまだないプロジェクトは warning として報告され、Restore されるまで解析対象から外れます。
 
 ## MSBuild プロパティ
 
@@ -114,7 +125,9 @@ MSBuild プロパティで上書きできます。
 - `ResolutionGuardNuGetDirectOnly`（`true|false`）
 - `ResolutionGuardNuGetRuntimeOnly`（`true|false`）
 - `ResolutionGuardNuGetSolutionFile`（`.sln` / `.slnx` パス上書き）
+- `ResolutionGuardNuGetIncludedEntrypoints`（含める csproj パスを `;` 区切りで指定）
 - `ResolutionGuardNuGetExcludedEntrypoints`（除外する csproj パスを `;` 区切りで指定）
+- `ResolutionGuardNuGetIncludedPackageIds`（含める PackageId を `;` 区切りで指定）
 - `ResolutionGuardNuGetExcludedPackageIds`（除外する PackageId を `;` 区切りで指定）
 - `ResolutionGuardNuGetRepositoryRoot`（探索ルート上書き）
 

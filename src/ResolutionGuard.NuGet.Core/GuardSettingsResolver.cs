@@ -17,7 +17,9 @@ public static class GuardSettingsResolver
         string? excludedEntrypointsOverride,
         string? excludedPackageIdsOverride,
         string? scopeOverride = null,
-        string? solutionFileOverride = null)
+        string? solutionFileOverride = null,
+        string? includedEntrypointsOverride = null,
+        string? includedPackageIdsOverride = null)
     {
         List<string> diagnostics = [];
 
@@ -34,9 +36,11 @@ public static class GuardSettingsResolver
         bool runtimeOnly = false;
 
         string? solutionFilePath = null;
-        HashSet<string> includedEntrypoints = new(GuardPathComparer.StringComparer);
-        HashSet<string> excludedPackageIds = new(GuardPathComparer.StringComparer);
-        Dictionary<string, GuardRule> rules = new(GuardPathComparer.StringComparer);
+        HashSet<string> configuredIncludedEntrypoints = new(GuardPathComparer.StringComparer);
+        HashSet<string>? solutionEntrypoints = null;
+        HashSet<string> excludedPackageIds = new(GuardPackageIdComparer.StringComparer);
+        HashSet<string> includedPackageIds = new(GuardPackageIdComparer.StringComparer);
+        Dictionary<string, GuardRule> rules = new(GuardPackageIdComparer.StringComparer);
         HashSet<string> excludedEntrypoints = new(GuardPathComparer.StringComparer);
 
         if (configFile is not null)
@@ -69,6 +73,8 @@ public static class GuardSettingsResolver
                 runtimeOnly = configFile.RuntimeOnly.Value;
             }
 
+            AddResolvedPaths(configuredIncludedEntrypoints, configFile.IncludeEntrypoints, repositoryRoot);
+            AddAll(includedPackageIds, configFile.IncludePackageIds);
             AddAll(excludedPackageIds, configFile.ExcludePackageIds);
 
             if (configFile.Rules is not null)
@@ -104,17 +110,7 @@ public static class GuardSettingsResolver
                 }
             }
 
-            if (configFile.ExcludeEntrypoints is not null)
-            {
-                foreach (string entrypoint in configFile.ExcludeEntrypoints)
-                {
-                    string? normalizedEntryPoint = TryResolvePath(entrypoint, repositoryRoot);
-                    if (normalizedEntryPoint is not null)
-                    {
-                        excludedEntrypoints.Add(normalizedEntryPoint);
-                    }
-                }
-            }
+            AddResolvedPaths(excludedEntrypoints, configFile.ExcludeEntrypoints, repositoryRoot);
         }
 
         if (TryParseBoolean(enabledOverride, out bool enabledOverrideValue))
@@ -190,7 +186,20 @@ public static class GuardSettingsResolver
                 }
                 else
                 {
-                    includedEntrypoints = new HashSet<string>(includedProjects, GuardPathComparer.StringComparer);
+                    solutionEntrypoints = new HashSet<string>(includedProjects, GuardPathComparer.StringComparer);
+                }
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(includedEntrypointsOverride))
+        {
+            configuredIncludedEntrypoints.Clear();
+            foreach (string entrypoint in SplitPropertyValues(includedEntrypointsOverride))
+            {
+                string? normalizedEntryPoint = TryResolvePath(entrypoint, repositoryRoot);
+                if (normalizedEntryPoint is not null)
+                {
+                    configuredIncludedEntrypoints.Add(normalizedEntryPoint);
                 }
             }
         }
@@ -208,6 +217,15 @@ public static class GuardSettingsResolver
             }
         }
 
+        if (!string.IsNullOrWhiteSpace(includedPackageIdsOverride))
+        {
+            includedPackageIds.Clear();
+            foreach (string packageId in SplitPropertyValues(includedPackageIdsOverride))
+            {
+                includedPackageIds.Add(packageId);
+            }
+        }
+
         if (!string.IsNullOrWhiteSpace(excludedPackageIdsOverride))
         {
             excludedPackageIds.Clear();
@@ -216,6 +234,11 @@ public static class GuardSettingsResolver
                 excludedPackageIds.Add(packageId);
             }
         }
+
+        HashSet<string> includedEntrypoints = BuildFinalIncludedEntrypoints(
+            scope,
+            configuredIncludedEntrypoints,
+            solutionEntrypoints);
 
         GuardSettings settings = new()
         {
@@ -230,6 +253,7 @@ public static class GuardSettingsResolver
             SolutionFilePath = scope == GuardScope.Solution ? solutionFilePath : null,
             IncludedEntrypoints = includedEntrypoints,
             ExcludedEntrypoints = excludedEntrypoints,
+            IncludedPackageIds = includedPackageIds,
             ExcludedPackageIds = excludedPackageIds,
             Rules = rules,
         };
@@ -282,6 +306,43 @@ public static class GuardSettingsResolver
                 target.Add(value.Trim());
             }
         }
+    }
+
+    private static void AddResolvedPaths(ISet<string> target, IEnumerable<string>? values, string baseDirectory)
+    {
+        if (values is null)
+        {
+            return;
+        }
+
+        foreach (string value in values)
+        {
+            string? normalizedPath = TryResolvePath(value, baseDirectory);
+            if (normalizedPath is not null)
+            {
+                target.Add(normalizedPath);
+            }
+        }
+    }
+
+    private static HashSet<string> BuildFinalIncludedEntrypoints(
+        GuardScope scope,
+        ISet<string> configuredIncludedEntrypoints,
+        ISet<string>? solutionEntrypoints)
+    {
+        if (scope != GuardScope.Solution || solutionEntrypoints is null)
+        {
+            return new HashSet<string>(configuredIncludedEntrypoints, GuardPathComparer.StringComparer);
+        }
+
+        if (configuredIncludedEntrypoints.Count == 0)
+        {
+            return new HashSet<string>(solutionEntrypoints, GuardPathComparer.StringComparer);
+        }
+
+        HashSet<string> finalIncludedEntrypoints = new(configuredIncludedEntrypoints, GuardPathComparer.StringComparer);
+        finalIncludedEntrypoints.IntersectWith(solutionEntrypoints);
+        return finalIncludedEntrypoints;
     }
 
     private static IEnumerable<string> SplitPropertyValues(string? value)

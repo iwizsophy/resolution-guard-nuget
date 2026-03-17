@@ -19,7 +19,23 @@
     "runtimeOnly": {
       "type": "boolean"
     },
+    "includeEntrypoints": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
     "excludeEntrypoints": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "includePackageIds": {
       "type": "array",
       "items": {
         "type": "string",

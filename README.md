@@ -78,8 +78,16 @@ Example:
   "scope": "repository",
   "directOnly": false,
   "runtimeOnly": false,
+  "includeEntrypoints": [
+    "src/AppA/AppA.csproj",
+    "src/AppB/AppB.csproj"
+  ],
   "excludeEntrypoints": [
     "src/ExperimentalApp/ExperimentalApp.csproj"
+  ],
+  "includePackageIds": [
+    "Newtonsoft.Json",
+    "Plugin.SDK"
   ],
   "excludePackageIds": [
     "Microsoft.NETCore.App",
@@ -98,11 +106,14 @@ Notes:
 - `scope` is optional (`repository` by default). Set `solution` to limit analysis to projects listed in the current solution file.
 - `directOnly` is optional (`false` by default). When `true`, only directly referenced packages are analyzed.
 - `runtimeOnly` is optional (`false` by default). When `true`, only packages with runtime assets are analyzed.
-- `excludeEntrypoints` is an entry-project exclude-list (blacklist).
-- `excludePackageIds` is package exclude-list (blacklist).
+- `includeEntrypoints` is an optional entry-project allowlist. When `scope=solution`, it narrows the solution project set.
+- `excludeEntrypoints` is an entry-project exclude-list (blacklist) and wins if the same path is present in both include/exclude lists.
+- `includePackageIds` is an optional package allowlist.
+- `excludePackageIds` is a package exclude-list (blacklist) and wins if the same package ID is present in both include/exclude lists.
 - `rules[].mode` overrides the global `mode` for that package ID.
 - `rules[].versions` is optional. Listed versions are treated as allowed, and any other resolved version follows `rules[].mode`.
 - When `scope=solution`, the task uses `$(SolutionPath)` by default. If no solution file is available, it logs a warning and falls back to `repository`.
+- When `scope=solution`, projects without a corresponding `project.assets.json` are reported as a warning and omitted from analysis until they are restored.
 
 ## MSBuild properties
 
@@ -114,7 +125,9 @@ Notes:
 - `ResolutionGuardNuGetDirectOnly` (`true|false`)
 - `ResolutionGuardNuGetRuntimeOnly` (`true|false`)
 - `ResolutionGuardNuGetSolutionFile` (`.sln` / `.slnx` path override)
+- `ResolutionGuardNuGetIncludedEntrypoints` (`;` separated csproj paths to include)
 - `ResolutionGuardNuGetExcludedEntrypoints` (`;` separated csproj paths to exclude)
+- `ResolutionGuardNuGetIncludedPackageIds` (`;` separated package ids to include)
 - `ResolutionGuardNuGetExcludedPackageIds` (`;` separated package ids to exclude)
 - `ResolutionGuardNuGetRepositoryRoot` (search root override)
 
