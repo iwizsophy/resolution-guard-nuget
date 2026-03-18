@@ -196,23 +196,54 @@ public static class ResolutionGuardNuGetAnalyzer
 
     private static List<string> ResolveAssetsFiles(GuardSettings settings, ISet<string> expectedEntrypoints)
     {
-        if (expectedEntrypoints.Count == 0)
+        bool canNarrowByEntrypoints = settings.Scope == GuardScope.Solution || settings.IncludedEntrypoints.Count > 0;
+        if (!canNarrowByEntrypoints)
         {
-            return [.. Directory
-                .EnumerateFiles(settings.RepositoryRoot, "project.assets.json", SearchOption.AllDirectories)
-                .Where(IsObjAssetsPath)];
+            return EnumerateRepositoryAssetsFiles(settings.RepositoryRoot);
         }
 
-        return [.. expectedEntrypoints
-            .Select(GetAssetsPathForProject)
-            .Where(File.Exists)
+        if (expectedEntrypoints.Count == 0)
+        {
+            return [];
+        }
+
+        List<string> localAssetsFiles = [];
+
+        foreach (string entrypoint in expectedEntrypoints)
+        {
+            List<string> entrypointAssetsFiles = EnumerateEntrypointAssetsFiles(entrypoint);
+            if (entrypointAssetsFiles.Count == 0)
+            {
+                return EnumerateRepositoryAssetsFiles(settings.RepositoryRoot);
+            }
+
+            localAssetsFiles.AddRange(entrypointAssetsFiles);
+        }
+
+        return [.. localAssetsFiles
+            .Distinct(GuardPathComparer.StringComparer)
             .OrderBy(path => path, GuardPathComparer.StringComparer)];
     }
 
-    private static string GetAssetsPathForProject(string projectPath)
+    private static List<string> EnumerateRepositoryAssetsFiles(string repositoryRoot)
+    {
+        return [.. Directory
+            .EnumerateFiles(repositoryRoot, "project.assets.json", SearchOption.AllDirectories)
+            .Where(IsObjAssetsPath)];
+    }
+
+    private static List<string> EnumerateEntrypointAssetsFiles(string projectPath)
     {
         string projectDirectory = System.IO.Path.GetDirectoryName(projectPath) ?? projectPath;
-        return System.IO.Path.Combine(projectDirectory, "obj", "project.assets.json");
+        if (!Directory.Exists(projectDirectory))
+        {
+            return [];
+        }
+
+        return [.. Directory
+            .EnumerateFiles(projectDirectory, "project.assets.json", SearchOption.AllDirectories)
+            .Where(IsObjAssetsPath)
+            .OrderBy(path => path, GuardPathComparer.StringComparer)];
     }
 
     private static void TrackObservedSolutionEntrypoint(

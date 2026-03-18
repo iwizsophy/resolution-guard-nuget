@@ -25,7 +25,9 @@ RunTest("msbuild integration emits success message when enabled", TestMsBuildInt
 RunTest("analyzer disabled returns empty", TestAnalyzerDisabledReturnsEmpty);
 RunTest("analyzer missing repository root reports diagnostic", TestAnalyzerMissingRepositoryRootReportsDiagnostic);
 RunTest("analyzer parse failure reports diagnostic", TestAnalyzerParseFailureReportsDiagnostic);
-RunTest("included entrypoints narrow assets enumeration", TestIncludedEntrypointsNarrowAssetsEnumeration);
+RunTest("included entrypoints narrow nested obj assets enumeration", TestIncludedEntrypointsNarrowNestedObjAssetsEnumeration);
+RunTest("included entrypoints effective empty set skips enumeration", TestIncludedEntrypointsEffectiveEmptySetSkipsEnumeration);
+RunTest("included entrypoints fall back for relocated repo obj assets", TestIncludedEntrypointsFallbackForRelocatedRepositoryObjAssets);
 RunTest("included entrypoints allowlist", TestIncludedEntrypointsAllowlist);
 RunTest("included entrypoints exclude wins", TestIncludedEntrypointsExcludeWins);
 RunTest("excluded package ids blacklist", TestExcludedPackageIds);
@@ -570,12 +572,18 @@ void TestAnalyzerParseFailureReportsDiagnostic()
     }
 }
 
-void TestIncludedEntrypointsNarrowAssetsEnumeration()
+void TestIncludedEntrypointsNarrowNestedObjAssetsEnumeration()
 {
     string root = CreateTempRoot();
     try
     {
-        string appA = WriteProjectAssets(root, "src/AppA/AppA.csproj", ("Example.Allow", "1.0.0"));
+        string appA = WriteProjectAssetsDetailedAtAssetsPathWithOptions(
+            root,
+            "src/AppA/AppA.csproj",
+            "src/AppA/obj/host-validation/net9.0/project.assets.json",
+            includeTargets: true,
+            includeRestoreProjectPath: true,
+            ("Example.Allow", "1.0.0", true, true));
         string appBAssets = Path.Combine(root, "src", "AppB", "obj", "project.assets.json");
         Directory.CreateDirectory(Path.GetDirectoryName(appBAssets) ?? root);
         File.WriteAllText(appBAssets, "{ invalid json");
@@ -591,6 +599,64 @@ void TestIncludedEntrypointsNarrowAssetsEnumeration()
         Expect(
             !result.Diagnostics.Any(x => x.Contains("Failed to parse", StringComparison.OrdinalIgnoreCase)),
             "Out-of-scope assets files should not be parsed when includeEntrypoints narrows analysis.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestIncludedEntrypointsEffectiveEmptySetSkipsEnumeration()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        string appA = EnsureProjectFile(root, "src/AppA/AppA.csproj");
+        string appBAssets = Path.Combine(root, "src", "AppB", "obj", "project.assets.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(appBAssets) ?? root);
+        File.WriteAllText(appBAssets, "{ invalid json");
+
+        GuardSettings settings = CreateSettings(
+            root,
+            mode: GuardMode.Error,
+            includedEntrypoints: [appA],
+            excludedEntrypoints: [appA]);
+
+        GuardAnalysisResult result = ResolutionGuardNuGetAnalyzer.Analyze(settings);
+
+        Expect(result.AssetsFileCount == 0, "An effective empty entrypoint set should not trigger repository scanning.");
+        Expect(
+            !result.Diagnostics.Any(x => x.Contains("Failed to parse", StringComparison.OrdinalIgnoreCase)),
+            "An effective empty entrypoint set should not parse out-of-scope assets.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestIncludedEntrypointsFallbackForRelocatedRepositoryObjAssets()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        string appA = WriteProjectAssetsDetailedAtAssetsPathWithOptions(
+            root,
+            "src/AppA/AppA.csproj",
+            "obj/shared/AppA/project.assets.json",
+            includeTargets: true,
+            includeRestoreProjectPath: true,
+            ("Example.Allow", "1.0.0", true, true));
+
+        GuardSettings settings = CreateSettings(
+            root,
+            mode: GuardMode.Error,
+            includedEntrypoints: [appA]);
+
+        GuardAnalysisResult result = ResolutionGuardNuGetAnalyzer.Analyze(settings);
+
+        Expect(result.AssetsFileCount == 1, "When local narrowing misses, analyzer should fall back to repository assets discovery.");
+        Expect(result.Diagnostics.Count == 0, "Fallback repository discovery should still parse relocated assets successfully.");
     }
     finally
     {
@@ -2262,6 +2328,25 @@ string WriteProjectAssetsDetailedWithOptions(
     bool includeRestoreProjectPath,
     params (string PackageId, string Version, bool IsDirect, bool HasRuntimeAssets)[] packages)
 {
+    string projectDirectoryRelativePath = Path.GetDirectoryName(projectRelativePath) ?? string.Empty;
+    string assetsRelativePath = Path.Combine(projectDirectoryRelativePath, "obj", "project.assets.json");
+    return WriteProjectAssetsDetailedAtAssetsPathWithOptions(
+        root,
+        projectRelativePath,
+        assetsRelativePath,
+        includeTargets,
+        includeRestoreProjectPath,
+        packages);
+}
+
+string WriteProjectAssetsDetailedAtAssetsPathWithOptions(
+    string root,
+    string projectRelativePath,
+    string assetsRelativePath,
+    bool includeTargets,
+    bool includeRestoreProjectPath,
+    params (string PackageId, string Version, bool IsDirect, bool HasRuntimeAssets)[] packages)
+{
     string projectPath = Normalize(Path.Combine(root, projectRelativePath));
     string projectDirectory = Path.GetDirectoryName(projectPath) ?? throw new InvalidOperationException("Project directory missing.");
     Directory.CreateDirectory(projectDirectory);
@@ -2345,10 +2430,9 @@ string WriteProjectAssetsDetailedWithOptions(
         };
     }
 
-    string objDirectory = Path.Combine(projectDirectory, "obj");
-    Directory.CreateDirectory(objDirectory);
-
-    string assetsPath = Path.Combine(objDirectory, "project.assets.json");
+    string assetsPath = Normalize(Path.Combine(root, assetsRelativePath));
+    string assetsDirectory = Path.GetDirectoryName(assetsPath) ?? throw new InvalidOperationException("Assets directory missing.");
+    Directory.CreateDirectory(assetsDirectory);
     string json = JsonSerializer.Serialize(jsonModel, CachedJsonSerializerOptions);
     File.WriteAllText(assetsPath, json);
 
