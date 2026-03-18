@@ -72,10 +72,16 @@ You can override with MSBuild property:
 <ResolutionGuardNuGetConfigFile>path/to/nuget-resolution-guard.json</ResolutionGuardNuGetConfigFile>
 ```
 
+Recommended editor integration:
+
+- Add `$schema` to the config file and point it at the published schema URL: `https://raw.githubusercontent.com/iwizsophy/resolution-guard-nuget/main/nuget-resolution-guard.schema.json`
+- The NuGet package also carries a copy of `nuget-resolution-guard.schema.json` for packaging completeness and offline inspection, but the published URL is the canonical editor-integration entrypoint.
+
 Example:
 
 ```json
 {
+  "$schema": "https://raw.githubusercontent.com/iwizsophy/resolution-guard-nuget/main/nuget-resolution-guard.schema.json",
   "mode": "warning",
   "scope": "repository",
   "directOnly": false,
