@@ -40,6 +40,8 @@ Current CI validates build-time task behavior with .NET SDK / MSBuild hosts from
 
 That validation scope describes the repository's current smoke-test coverage. It is not an exhaustive IDE or SDK support matrix.
 
+Common SDK-style project types such as `.csproj`, `.fsproj`, and `.vbproj` are within the current support policy.
+
 ## Install
 
 ```xml
@@ -108,12 +110,14 @@ Notes:
 - `runtimeOnly` is optional (`false` by default). When `true`, only packages with runtime assets are analyzed.
 - `includeEntrypoints` is an optional entry-project allowlist. When `scope=solution`, it narrows the solution project set.
 - `excludeEntrypoints` is an entry-project exclude-list (blacklist) and wins if the same path is present in both include/exclude lists.
+- Entrypoint paths are SDK-style project paths. Common extensions such as `.csproj`, `.fsproj`, and `.vbproj` are supported.
 - `includePackageIds` is an optional package allowlist.
 - `excludePackageIds` is a package exclude-list (blacklist) and wins if the same package ID is present in both include/exclude lists.
 - `rules[].mode` overrides the global `mode` for that package ID.
 - `rules[].versions` is optional. Listed versions are treated as allowed, and any other resolved version follows `rules[].mode`.
 - When `scope=solution`, the task uses `$(SolutionPath)` by default. If no solution file is available, it logs a warning and falls back to `repository`.
 - When `scope=solution`, projects without a corresponding `project.assets.json` are reported as a warning and omitted from analysis until they are restored.
+- When `project.assets.json` omits `project.restore.projectPath`, fallback resolution accepts only a single unambiguous SDK-style project file in that directory. If fallback is ambiguous, the task warns and skips that assets file instead of guessing.
 
 ## MSBuild properties
 
@@ -125,8 +129,8 @@ Notes:
 - `ResolutionGuardNuGetDirectOnly` (`true|false`)
 - `ResolutionGuardNuGetRuntimeOnly` (`true|false`)
 - `ResolutionGuardNuGetSolutionFile` (`.sln` / `.slnx` path override)
-- `ResolutionGuardNuGetIncludedEntrypoints` (`;` separated csproj paths to include)
-- `ResolutionGuardNuGetExcludedEntrypoints` (`;` separated csproj paths to exclude)
+- `ResolutionGuardNuGetIncludedEntrypoints` (`;` separated SDK-style project paths to include)
+- `ResolutionGuardNuGetExcludedEntrypoints` (`;` separated SDK-style project paths to exclude)
 - `ResolutionGuardNuGetIncludedPackageIds` (`;` separated package ids to include)
 - `ResolutionGuardNuGetExcludedPackageIds` (`;` separated package ids to exclude)
 - `ResolutionGuardNuGetRepositoryRoot` (search root override)

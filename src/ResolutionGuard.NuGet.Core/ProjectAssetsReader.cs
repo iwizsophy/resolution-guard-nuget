@@ -26,6 +26,8 @@ internal sealed class ResolvedPackage
 
 internal static class ProjectAssetsReader
 {
+    private static readonly string[] SupportedProjectExtensions = [".csproj", ".fsproj", ".vbproj"];
+
     public static bool TryRead(string assetsPath, out ProjectAssetsDocument? document, out string? diagnostic)
     {
         document = null;
@@ -36,7 +38,12 @@ internal static class ProjectAssetsReader
             using JsonDocument json = JsonDocument.Parse(File.ReadAllText(assetsPath));
             JsonElement root = json.RootElement;
 
-            string projectPath = ResolveProjectPath(root, assetsPath);
+            if (!TryResolveProjectPath(root, assetsPath, out string projectPath, out string? projectPathDiagnostic))
+            {
+                diagnostic = projectPathDiagnostic;
+                return false;
+            }
+
             string projectName = System.IO.Path.GetFileNameWithoutExtension(projectPath);
 
             Dictionary<string, ResolvedPackage> packages = ReadPackages(root);
@@ -218,8 +225,15 @@ internal static class ProjectAssetsReader
         return $"{packageId}/{version}";
     }
 
-    private static string ResolveProjectPath(JsonElement root, string assetsPath)
+    private static bool TryResolveProjectPath(
+        JsonElement root,
+        string assetsPath,
+        out string projectPath,
+        out string? diagnostic)
     {
+        projectPath = string.Empty;
+        diagnostic = null;
+
         if (root.TryGetProperty("project", out JsonElement projectNode)
             && projectNode.ValueKind == JsonValueKind.Object
             && projectNode.TryGetProperty("restore", out JsonElement restoreNode)
@@ -230,29 +244,88 @@ internal static class ProjectAssetsReader
             string? configuredPath = projectPathNode.GetString();
             if (!string.IsNullOrWhiteSpace(configuredPath))
             {
-                string nonNullableConfiguredPath = configuredPath ?? string.Empty;
-                return nonNullableConfiguredPath.Trim();
+                projectPath = (configuredPath ?? string.Empty).Trim();
+                return true;
             }
         }
 
-        return InferProjectPathFromAssetsPath(assetsPath);
+        return TryInferProjectPathFromAssetsPath(assetsPath, out projectPath, out diagnostic);
     }
 
-    internal static string InferProjectPathFromAssetsPath(string assetsPath)
+    internal static bool TryInferProjectPathFromAssetsPath(string assetsPath, out string projectPath)
     {
-        string objDirectory = System.IO.Path.GetDirectoryName(assetsPath) ?? assetsPath;
+        return TryInferProjectPathFromAssetsPath(assetsPath, out projectPath, out _);
+    }
+
+    private static bool TryInferProjectPathFromAssetsPath(
+        string assetsPath,
+        out string projectPath,
+        out string? diagnostic)
+    {
+        string normalizedAssetsPath = NormalizePath(assetsPath);
+        string objDirectory = System.IO.Path.GetDirectoryName(normalizedAssetsPath) ?? normalizedAssetsPath;
         string projectDirectory = Directory.GetParent(objDirectory)?.FullName ?? objDirectory;
+        string normalizedProjectDirectory = NormalizePath(projectDirectory);
 
-        string[] csprojFiles = Directory.Exists(projectDirectory)
-            ? Directory.GetFiles(projectDirectory, "*.csproj", SearchOption.TopDirectoryOnly)
-            : [];
-
-        if (csprojFiles.Length == 1)
+        string[] supportedProjectFiles = EnumerateSupportedProjectFiles(normalizedProjectDirectory);
+        if (supportedProjectFiles.Length == 1)
         {
-            return NormalizePath(csprojFiles[0]);
+            projectPath = supportedProjectFiles[0];
+            diagnostic = null;
+            return true;
         }
 
-        return NormalizePath(System.IO.Path.Combine(projectDirectory, $"{new DirectoryInfo(projectDirectory).Name}.csproj"));
+        string directoryName = new DirectoryInfo(normalizedProjectDirectory).Name;
+        string[] matchingDirectoryNameFiles = supportedProjectFiles
+            .Where(path => string.Equals(
+                System.IO.Path.GetFileNameWithoutExtension(path),
+                directoryName,
+                StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+
+        if (matchingDirectoryNameFiles.Length == 1)
+        {
+            projectPath = matchingDirectoryNameFiles[0];
+            diagnostic = null;
+            return true;
+        }
+
+        projectPath = string.Empty;
+        diagnostic = FormatProjectPathResolutionDiagnostic(
+            normalizedAssetsPath,
+            normalizedProjectDirectory,
+            supportedProjectFiles);
+        return false;
+    }
+
+    private static string[] EnumerateSupportedProjectFiles(string projectDirectory)
+    {
+        if (!Directory.Exists(projectDirectory))
+        {
+            return [];
+        }
+
+        return [.. Directory
+            .EnumerateFiles(projectDirectory, "*.*proj", SearchOption.TopDirectoryOnly)
+            .Where(path => SupportedProjectExtensions.Contains(System.IO.Path.GetExtension(path), StringComparer.OrdinalIgnoreCase))
+            .Select(NormalizePath)
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)];
+    }
+
+    private static string FormatProjectPathResolutionDiagnostic(
+        string assetsPath,
+        string projectDirectory,
+        IReadOnlyList<string> supportedProjectFiles)
+    {
+        string supportedExtensions = string.Join(", ", SupportedProjectExtensions);
+
+        if (supportedProjectFiles.Count == 0)
+        {
+            return $"ResolutionGuard.NuGet: Failed to resolve a project path for '{assetsPath}'. 'project.restore.projectPath' was missing, and fallback resolution found no supported SDK-style project file ({supportedExtensions}) under '{projectDirectory}'.";
+        }
+
+        string candidates = string.Join(", ", supportedProjectFiles);
+        return $"ResolutionGuard.NuGet: Failed to resolve a project path for '{assetsPath}'. 'project.restore.projectPath' was missing, and fallback resolution was ambiguous among {supportedProjectFiles.Count} supported SDK-style project files under '{projectDirectory}': {candidates}.";
     }
 
     private static string NormalizePath(string path)
