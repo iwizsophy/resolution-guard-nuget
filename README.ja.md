@@ -72,10 +72,16 @@ MSBuild プロパティで上書きできます。
 <ResolutionGuardNuGetConfigFile>path/to/nuget-resolution-guard.json</ResolutionGuardNuGetConfigFile>
 ```
 
+推奨するエディター連携:
+
+- 設定ファイルに `$schema` を追加し、公開スキーマ URL `https://raw.githubusercontent.com/iwizsophy/resolution-guard-nuget/main/nuget-resolution-guard.schema.json` を指定します。
+- NuGet パッケージにも `nuget-resolution-guard.schema.json` を同梱していますが、これはパッケージ完全性とオフライン参照のためです。エディター連携の正規入口は公開 URL とします。
+
 例:
 
 ```json
 {
+  "$schema": "https://raw.githubusercontent.com/iwizsophy/resolution-guard-nuget/main/nuget-resolution-guard.schema.json",
   "mode": "warning",
   "scope": "repository",
   "directOnly": false,

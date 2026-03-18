@@ -1,4 +1,5 @@
 {
+  "$schema": "https://raw.githubusercontent.com/iwizsophy/resolution-guard-nuget/main/nuget-resolution-guard.schema.json",
   "mode": "warning",
   "directOnly": false,
   "runtimeOnly": false,

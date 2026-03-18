@@ -63,6 +63,7 @@ RunTest("resolver invalid mode reports diagnostics", TestResolverInvalidModeRepo
 RunTest("resolver invalid boolean overrides report diagnostics", TestResolverInvalidBooleanOverridesReportDiagnostics);
 RunTest("resolver invalid rule mode reports diagnostic", TestResolverInvalidRuleModeReportsDiagnostic);
 RunTest("resolver invalid config file reports diagnostic", TestResolverInvalidConfigFileReportsDiagnostic);
+RunTest("resolver config accepts schema property", TestResolverConfigAcceptsSchemaProperty);
 RunTest("resolver rule versions", TestResolverRuleVersions);
 RunTest("resolver direct/runtime flags", TestResolverDirectRuntimeFlags);
 RunTest("resolver scope override", TestResolverScopeOverride);
@@ -1732,6 +1733,45 @@ void TestResolverInvalidConfigFileReportsDiagnostic()
         Expect(
             resolved.Diagnostics.Any(x => x.Contains("Failed to read config", StringComparison.OrdinalIgnoreCase)),
             "Malformed config should report a diagnostic.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestResolverConfigAcceptsSchemaProperty()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        string configPath = Path.Combine(root, "nuget-resolution-guard.json");
+        File.WriteAllText(
+            configPath,
+            """
+            {
+              "$schema": "https://raw.githubusercontent.com/iwizsophy/resolution-guard-nuget/main/nuget-resolution-guard.schema.json",
+              "mode": "error",
+              "excludePackageIds": [ "Microsoft.NETCore.App" ]
+            }
+            """);
+
+        GuardSettingsResolution resolved = GuardSettingsResolver.Resolve(
+            projectDirectory: root,
+            repositoryRootOverride: root,
+            configFileOverride: configPath,
+            modeOverride: null,
+            directOnlyOverride: null,
+            runtimeOnlyOverride: null,
+            enabledOverride: "true",
+            excludedEntrypointsOverride: null,
+            excludedPackageIdsOverride: null);
+
+        Expect(resolved.Diagnostics.Count == 0, "$schema metadata should not make config loading fail.");
+        Expect(resolved.Settings.Mode == GuardMode.Error, "Config values should still be applied when $schema is present.");
+        Expect(
+            resolved.Settings.ExcludedPackageIds.Contains("Microsoft.NETCore.App"),
+            "$schema metadata should not interfere with package-id settings.");
     }
     finally
     {
