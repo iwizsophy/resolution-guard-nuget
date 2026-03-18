@@ -34,7 +34,8 @@ RunTest("included package ids exclude wins", TestIncludedPackageIdsExcludeWins);
 RunTest("direct only filters transitive", TestDirectOnlyFiltersTransitive);
 RunTest("runtime only filters non-runtime packages", TestRuntimeOnlyFiltersNonRuntimePackages);
 RunTest("runtime only without targets treats packages as runtime", TestRuntimeOnlyWithoutTargetsTreatsPackagesAsRuntime);
-RunTest("project path fallback infers csproj", TestProjectPathFallbackInfersCsproj);
+RunTest("project path fallback infers supported SDK project types", TestProjectPathFallbackInfersSupportedSdkProjectTypes);
+RunTest("project path fallback rejects ambiguous project directories", TestProjectPathFallbackRejectsAmbiguousProjectDirectory);
 RunTest("solution scope filters non-solution projects", TestSolutionScopeFiltersNonSolutionProjects);
 RunTest("solution scope warns when projects are unrestored", TestSolutionScopeWarnsWhenProjectsAreUnrestored);
 RunTest("solution scope missing assets ignores excluded entrypoints", TestSolutionScopeMissingAssetsIgnoresExcludedEntrypoints);
@@ -813,20 +814,20 @@ void TestRuntimeOnlyWithoutTargetsTreatsPackagesAsRuntime()
     }
 }
 
-void TestProjectPathFallbackInfersCsproj()
+void TestProjectPathFallbackInfersSupportedSdkProjectTypes()
 {
     string root = CreateTempRoot();
     try
     {
         string appA = WriteProjectAssetsDetailedWithOptions(
             root,
-            "src/AppA/AppA.csproj",
+            "src/AppA/AppA.fsproj",
             includeTargets: true,
             includeRestoreProjectPath: false,
             ("Fallback.Package", "1.0.0", true, true));
         string appB = WriteProjectAssetsDetailedWithOptions(
             root,
-            "src/AppB/AppB.csproj",
+            "src/AppB/AppB.vbproj",
             includeTargets: true,
             includeRestoreProjectPath: false,
             ("Fallback.Package", "2.0.0", true, true));
@@ -839,8 +840,41 @@ void TestProjectPathFallbackInfersCsproj()
 
         Expect(result.Mismatches.Count == 1, "Fallback project-path resolution should still produce a mismatch.");
         PackageMismatch mismatch = result.Mismatches[0];
-        Expect(mismatch.VersionMap["1.0.0"].Any(x => x.Path == appA), "Fallback should infer AppA.csproj.");
-        Expect(mismatch.VersionMap["2.0.0"].Any(x => x.Path == appB), "Fallback should infer AppB.csproj.");
+        Expect(mismatch.VersionMap["1.0.0"].Any(x => x.Path == appA), "Fallback should infer AppA.fsproj.");
+        Expect(mismatch.VersionMap["2.0.0"].Any(x => x.Path == appB), "Fallback should infer AppB.vbproj.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestProjectPathFallbackRejectsAmbiguousProjectDirectory()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        WriteProjectAssetsDetailedWithOptions(
+            root,
+            "src/Mixed/App.fsproj",
+            includeTargets: true,
+            includeRestoreProjectPath: false,
+            ("Fallback.Package", "1.0.0", true, true));
+        string competingProject = EnsureProjectFile(root, "src/Mixed/App.csproj");
+
+        GuardSettings settings = CreateSettings(
+            root,
+            mode: GuardMode.Error);
+
+        GuardAnalysisResult result = ResolutionGuardNuGetAnalyzer.Analyze(settings);
+
+        Expect(result.Mismatches.Count == 0, "Ambiguous fallback should skip the assets file instead of guessing a project path.");
+        Expect(
+            result.Diagnostics.Any(x =>
+                x.Contains("Failed to resolve a project path", StringComparison.OrdinalIgnoreCase)
+                && x.Contains(competingProject, StringComparison.OrdinalIgnoreCase)
+                && x.Contains("App.fsproj", StringComparison.OrdinalIgnoreCase)),
+            "Ambiguous fallback should report the competing SDK-style project paths.");
     }
     finally
     {
@@ -1102,8 +1136,8 @@ void TestResolverSolutionScopeLoadsSlnxProjects()
     string root = CreateTempRoot();
     try
     {
-        string appA = Normalize(Path.Combine(root, "src/AppA/AppA.csproj"));
-        string appB = Normalize(Path.Combine(root, "src/AppB/AppB.csproj"));
+        string appA = Normalize(Path.Combine(root, "src/AppA/AppA.fsproj"));
+        string appB = Normalize(Path.Combine(root, "src/AppB/AppB.vbproj"));
         string solutionPath = Path.Combine(root, "Repo.slnx");
 
         Directory.CreateDirectory(Path.GetDirectoryName(appA) ?? root);
@@ -1112,9 +1146,9 @@ void TestResolverSolutionScopeLoadsSlnxProjects()
             solutionPath,
             """
             <Solution>
-              <Project Path="src/AppA/AppA.csproj" />
+              <Project Path="src/AppA/AppA.fsproj" />
               <Folder Name="/nested/">
-                <Project Path="src/AppB/AppB.csproj" />
+                <Project Path="src/AppB/AppB.vbproj" />
               </Folder>
             </Solution>
             """);
@@ -1147,16 +1181,20 @@ void TestResolverSolutionScopeLoadsSlnProjects()
     string root = CreateTempRoot();
     try
     {
-        string appA = Normalize(Path.Combine(root, "src/AppA/AppA.csproj"));
+        string appA = Normalize(Path.Combine(root, "src/AppA/AppA.fsproj"));
+        string appB = Normalize(Path.Combine(root, "src/AppB/AppB.vbproj"));
         string solutionPath = Path.Combine(root, "Repo.sln");
 
         Directory.CreateDirectory(Path.GetDirectoryName(appA) ?? root);
+        Directory.CreateDirectory(Path.GetDirectoryName(appB) ?? root);
         File.WriteAllText(
             solutionPath,
             """
             Microsoft Visual Studio Solution File, Format Version 12.00
             # Visual Studio Version 17
-            Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AppA", "src\AppA\AppA.csproj", "{11111111-1111-1111-1111-111111111111}"
+            Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "AppA", "src\AppA\AppA.fsproj", "{11111111-1111-1111-1111-111111111111}"
+            EndProject
+            Project("{F184B08F-C81C-45F6-A57F-5ABD9991F28F}") = "AppB", "src\AppB\AppB.vbproj", "{33333333-3333-3333-3333-333333333333}"
             EndProject
             Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{22222222-2222-2222-2222-222222222222}"
             EndProject
@@ -1179,7 +1217,8 @@ void TestResolverSolutionScopeLoadsSlnProjects()
 
         Expect(resolved.Settings.Scope == GuardScope.Solution, "Scope should remain solution.");
         Expect(resolved.Settings.IncludedEntrypoints.Contains(appA), "sln should include AppA.");
-        Expect(resolved.Settings.IncludedEntrypoints.Count == 1, "Solution folders should be ignored.");
+        Expect(resolved.Settings.IncludedEntrypoints.Contains(appB), "sln should include AppB.");
+        Expect(resolved.Settings.IncludedEntrypoints.Count == 2, "Solution folders should be ignored.");
     }
     finally
     {

@@ -54,7 +54,11 @@ public static class ResolutionGuardNuGetAnalyzer
                     diagnostics.Add(diagnostic);
                 }
 
-                TrackObservedSolutionEntrypoint(expectedSolutionEntrypoints, observedSolutionEntrypoints, ProjectAssetsReader.InferProjectPathFromAssetsPath(assetsFile));
+                if (ProjectAssetsReader.TryInferProjectPathFromAssetsPath(assetsFile, out string inferredProjectPath))
+                {
+                    TrackObservedSolutionEntrypoint(expectedSolutionEntrypoints, observedSolutionEntrypoints, inferredProjectPath);
+                }
+
                 continue;
             }
 
