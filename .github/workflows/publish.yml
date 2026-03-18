@@ -8,7 +8,6 @@ on:
 
 jobs:
   publish:
-    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -28,6 +27,19 @@ jobs:
             8.0.x
             9.0.x
             10.0.x
+
+      - name: Validate manual workflow branch
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "${GITHUB_REF_NAME}" in
+            main|develop) ;;
+            *)
+              echo "Manual publish workflow runs are allowed only on main or develop." >&2
+              exit 1
+              ;;
+          esac
 
       - name: Fetch target branches
         shell: bash
@@ -49,38 +61,94 @@ jobs:
         run: |
           set -euo pipefail
 
+          set_publish_target() {
+            case "$1" in
+              main)
+                echo "source=https://api.nuget.org/v3/index.json" >> "${GITHUB_OUTPUT}"
+                echo "audience=https://www.nuget.org" >> "${GITHUB_OUTPUT}"
+                echo "token_service_url=https://www.nuget.org/api/v2/token" >> "${GITHUB_OUTPUT}"
+                echo "target=nuget.org" >> "${GITHUB_OUTPUT}"
+                echo "prerelease=false" >> "${GITHUB_OUTPUT}"
+                echo "latest=true" >> "${GITHUB_OUTPUT}"
+                ;;
+              develop)
+                # nugettest.org: feed(host=apiint) と OIDC token exchange(host=int) は別
+                echo "source=https://apiint.nugettest.org/v3/index.json" >> "${GITHUB_OUTPUT}"
+                echo "audience=https://int.nugettest.org" >> "${GITHUB_OUTPUT}"
+                echo "token_service_url=https://int.nugettest.org/api/v2/token" >> "${GITHUB_OUTPUT}"
+                echo "target=nugettest.org" >> "${GITHUB_OUTPUT}"
+                echo "prerelease=true" >> "${GITHUB_OUTPUT}"
+                echo "latest=false" >> "${GITHUB_OUTPUT}"
+                ;;
+              *)
+                echo "Publishing is allowed only from main or develop." >&2
+                exit 1
+                ;;
+            esac
+          }
+
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            echo "expected_version=" >> "${GITHUB_OUTPUT}"
+            echo "release_title=" >> "${GITHUB_OUTPUT}"
+            set_publish_target "${GITHUB_REF_NAME}"
+            exit 0
+          fi
+
           TAG_NAME="${GITHUB_REF_NAME}"
           EXPECTED_VERSION="${TAG_NAME#v}"
           TAG_COMMIT="$(git rev-list -n 1 "${TAG_NAME}")"
 
+          is_on_main=false
+          is_on_develop=false
+
           if git merge-base --is-ancestor "${TAG_COMMIT}" "origin/main"; then
-            SOURCE="https://api.nuget.org/v3/index.json"
-            AUDIENCE="https://www.nuget.org"
-            TOKEN_SERVICE_URL="https://www.nuget.org/api/v2/token"
-            TARGET="nuget.org"
-            PRERELEASE="false"
-            LATEST="true"
-          elif git merge-base --is-ancestor "${TAG_COMMIT}" "origin/develop"; then
-            # nugettest.org: feed(host=apiint) と OIDC token exchange(host=int) は別
-            SOURCE="https://apiint.nugettest.org/v3/index.json"
-            AUDIENCE="https://int.nugettest.org"
-            TOKEN_SERVICE_URL="https://int.nugettest.org/api/v2/token"
-            TARGET="nugettest.org"
-            PRERELEASE="true"
-            LATEST="false"
+            is_on_main=true
+          fi
+
+          if git merge-base --is-ancestor "${TAG_COMMIT}" "origin/develop"; then
+            is_on_develop=true
+          fi
+
+          if [[ "${is_on_main}" == "true" && "${is_on_develop}" == "true" ]]; then
+            echo "Tagged commit ${TAG_COMMIT} is reachable from both main and develop." >&2
+            echo "Tag publishes must target a commit that belongs to exactly one publish branch." >&2
+            exit 1
+          fi
+
+          if [[ "${is_on_main}" == "true" ]]; then
+            set_publish_target main
+          elif [[ "${is_on_develop}" == "true" ]]; then
+            set_publish_target develop
           else
-            echo "Tag commit ${TAG_COMMIT} is not contained in main/develop." >&2
+            echo "Tagged commit ${TAG_COMMIT} is not contained in main/develop." >&2
             exit 1
           fi
 
           echo "expected_version=${EXPECTED_VERSION}" >> "${GITHUB_OUTPUT}"
-          echo "source=${SOURCE}" >> "${GITHUB_OUTPUT}"
-          echo "audience=${AUDIENCE}" >> "${GITHUB_OUTPUT}"
-          echo "token_service_url=${TOKEN_SERVICE_URL}" >> "${GITHUB_OUTPUT}"
-          echo "target=${TARGET}" >> "${GITHUB_OUTPUT}"
-          echo "prerelease=${PRERELEASE}" >> "${GITHUB_OUTPUT}"
-          echo "latest=${LATEST}" >> "${GITHUB_OUTPUT}"
           echo "release_title=ResolutionGuard.NuGet ${EXPECTED_VERSION}" >> "${GITHUB_OUTPUT}"
+
+      - name: Validate release tag format
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release tags must use the format v<major>.<minor>.<patch>." >&2
+            exit 1
+          fi
+
+      - name: Validate release tag is annotated
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag_ref="refs/tags/${GITHUB_REF_NAME}"
+          git fetch origin "${tag_ref}:${tag_ref}" --force
+          object_type="$(git cat-file -t "${tag_ref}")"
+          if [[ "${object_type}" != "tag" ]]; then
+            echo "Release tags must be annotated tags." >&2
+            exit 1
+          fi
 
       - name: Pack
         run: |
@@ -92,6 +160,7 @@ jobs:
             -o artifacts
 
       - name: Verify version resolved from tag
+        if: github.event_name == 'push'
         shell: bash
         run: |
           set -euo pipefail
@@ -104,6 +173,7 @@ jobs:
           fi
 
       - name: Extract release notes from changelog
+        if: github.event_name == 'push'
         id: release_notes
         shell: bash
         run: |
@@ -140,6 +210,7 @@ jobs:
             --skip-duplicate
 
       - name: Create or update GitHub Release
+        if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
