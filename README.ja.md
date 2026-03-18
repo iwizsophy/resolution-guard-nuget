@@ -117,6 +117,7 @@ MSBuild プロパティで上書きできます。
 - `includeEntrypoints` は任意のエントリープロジェクト許可リスト（allowlist）です。`scope=solution` の場合は solution に含まれるプロジェクト集合をさらに絞り込みます。
 - `excludeEntrypoints` はエントリープロジェクトの除外リスト（ブラックリスト）で、同じパスが include/exclude の両方にある場合は exclude が優先されます。
 - entrypoint のパスには SDK スタイル project のパスを指定します。`.csproj`、`.fsproj`、`.vbproj` などの一般的な拡張子をサポートします。
+- 実効 entrypoint 集合が確定している場合（たとえば `scope=solution` や `includeEntrypoints` を使う場合）、analyzer は repository root 全体を再帰走査せず、それらの project に対応する `obj/project.assets.json` を直接導出します。
 - `includePackageIds` は任意の PackageId 許可リスト（allowlist）です。
 - `excludePackageIds` は検査対象パッケージの除外リスト（ブラックリスト）で、同じ PackageId が include/exclude の両方にある場合は exclude が優先されます。
 - `rules[].mode` はその PackageId に対して全体 `mode` を上書きします。

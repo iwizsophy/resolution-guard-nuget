@@ -117,6 +117,7 @@ Notes:
 - `includeEntrypoints` is an optional entry-project allowlist. When `scope=solution`, it narrows the solution project set.
 - `excludeEntrypoints` is an entry-project exclude-list (blacklist) and wins if the same path is present in both include/exclude lists.
 - Entrypoint paths are SDK-style project paths. Common extensions such as `.csproj`, `.fsproj`, and `.vbproj` are supported.
+- When the effective entrypoint set is known (for example via `scope=solution` or `includeEntrypoints`), the analyzer derives those projects' `obj/project.assets.json` paths directly instead of recursively scanning the entire repository root.
 - `includePackageIds` is an optional package allowlist.
 - `excludePackageIds` is a package exclude-list (blacklist) and wins if the same package ID is present in both include/exclude lists.
 - `rules[].mode` overrides the global `mode` for that package ID.

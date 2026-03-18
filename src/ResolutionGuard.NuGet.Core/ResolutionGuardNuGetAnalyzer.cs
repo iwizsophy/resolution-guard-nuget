@@ -27,14 +27,13 @@ public static class ResolutionGuardNuGetAnalyzer
             };
         }
 
-        List<string> assetsFiles = [.. Directory
-            .EnumerateFiles(settings.RepositoryRoot, "project.assets.json", SearchOption.AllDirectories)
-            .Where(IsObjAssetsPath)];
+        HashSet<string> expectedEntrypoints = new(
+            settings.IncludedEntrypoints.Where(path => !settings.ExcludedEntrypoints.Contains(path)),
+            GuardPathComparer.StringComparer);
+        List<string> assetsFiles = ResolveAssetsFiles(settings, expectedEntrypoints);
 
         HashSet<string>? expectedSolutionEntrypoints = settings.Scope == GuardScope.Solution
-            ? new HashSet<string>(
-                settings.IncludedEntrypoints.Where(path => !settings.ExcludedEntrypoints.Contains(path)),
-                GuardPathComparer.StringComparer)
+            ? expectedEntrypoints
             : null;
         HashSet<string>? observedSolutionEntrypoints = expectedSolutionEntrypoints is null
             ? null
@@ -193,6 +192,27 @@ public static class ResolutionGuardNuGetAnalyzer
         string marker = $"{System.IO.Path.DirectorySeparatorChar}obj{System.IO.Path.DirectorySeparatorChar}";
         string normalized = path.Replace(System.IO.Path.AltDirectorySeparatorChar, System.IO.Path.DirectorySeparatorChar);
         return normalized.IndexOf(marker, StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private static List<string> ResolveAssetsFiles(GuardSettings settings, ISet<string> expectedEntrypoints)
+    {
+        if (expectedEntrypoints.Count == 0)
+        {
+            return [.. Directory
+                .EnumerateFiles(settings.RepositoryRoot, "project.assets.json", SearchOption.AllDirectories)
+                .Where(IsObjAssetsPath)];
+        }
+
+        return [.. expectedEntrypoints
+            .Select(GetAssetsPathForProject)
+            .Where(File.Exists)
+            .OrderBy(path => path, GuardPathComparer.StringComparer)];
+    }
+
+    private static string GetAssetsPathForProject(string projectPath)
+    {
+        string projectDirectory = System.IO.Path.GetDirectoryName(projectPath) ?? projectPath;
+        return System.IO.Path.Combine(projectDirectory, "obj", "project.assets.json");
     }
 
     private static void TrackObservedSolutionEntrypoint(
