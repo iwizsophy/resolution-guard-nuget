@@ -25,6 +25,7 @@ RunTest("msbuild integration emits success message when enabled", TestMsBuildInt
 RunTest("analyzer disabled returns empty", TestAnalyzerDisabledReturnsEmpty);
 RunTest("analyzer missing repository root reports diagnostic", TestAnalyzerMissingRepositoryRootReportsDiagnostic);
 RunTest("analyzer parse failure reports diagnostic", TestAnalyzerParseFailureReportsDiagnostic);
+RunTest("included entrypoints narrow assets enumeration", TestIncludedEntrypointsNarrowAssetsEnumeration);
 RunTest("included entrypoints allowlist", TestIncludedEntrypointsAllowlist);
 RunTest("included entrypoints exclude wins", TestIncludedEntrypointsExcludeWins);
 RunTest("excluded package ids blacklist", TestExcludedPackageIds);
@@ -569,6 +570,34 @@ void TestAnalyzerParseFailureReportsDiagnostic()
     }
 }
 
+void TestIncludedEntrypointsNarrowAssetsEnumeration()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        string appA = WriteProjectAssets(root, "src/AppA/AppA.csproj", ("Example.Allow", "1.0.0"));
+        string appBAssets = Path.Combine(root, "src", "AppB", "obj", "project.assets.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(appBAssets) ?? root);
+        File.WriteAllText(appBAssets, "{ invalid json");
+
+        GuardSettings settings = CreateSettings(
+            root,
+            mode: GuardMode.Error,
+            includedEntrypoints: [appA]);
+
+        GuardAnalysisResult result = ResolutionGuardNuGetAnalyzer.Analyze(settings);
+
+        Expect(result.AssetsFileCount == 1, "includeEntrypoints should enumerate only the selected projects' assets.");
+        Expect(
+            !result.Diagnostics.Any(x => x.Contains("Failed to parse", StringComparison.OrdinalIgnoreCase)),
+            "Out-of-scope assets files should not be parsed when includeEntrypoints narrows analysis.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
 void TestIncludedEntrypointsAllowlist()
 {
     string root = CreateTempRoot();
@@ -921,6 +950,7 @@ void TestSolutionScopeWarnsWhenProjectsAreUnrestored()
             includedEntrypoints: [appA, appB]);
 
         GuardAnalysisResult result = ResolutionGuardNuGetAnalyzer.Analyze(settings);
+        Expect(result.AssetsFileCount == 1, "Solution scope should enumerate only restored expected entrypoints.");
         Expect(result.Mismatches.Count == 0, "A single restored solution project should not produce a mismatch.");
         Expect(
             result.Diagnostics.Any(x =>
@@ -950,6 +980,7 @@ void TestSolutionScopeMissingAssetsIgnoresExcludedEntrypoints()
             excludedEntrypoints: [appB]);
 
         GuardAnalysisResult result = ResolutionGuardNuGetAnalyzer.Analyze(settings);
+        Expect(result.AssetsFileCount == 1, "Excluded solution entrypoints should not contribute assets enumeration.");
         Expect(
             !result.Diagnostics.Any(x => x.Contains("restored subset", StringComparison.OrdinalIgnoreCase)),
             "Excluded solution entrypoints should not trigger missing-assets warnings.");
