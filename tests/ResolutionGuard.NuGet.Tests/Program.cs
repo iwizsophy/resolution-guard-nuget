@@ -502,6 +502,7 @@ void TestPackBundlesSbom()
         using ZipArchive package = ZipFile.OpenRead(packages[0]);
         ZipArchiveEntry? sbomEntry = package.GetEntry("sbom/ResolutionGuard.NuGet.spdx.json");
         Expect(sbomEntry is not null, "The packed NuGet artifact should bundle the generated SPDX SBOM.");
+        Expect(package.GetEntry("assets/icon.png") is null, "The packed NuGet artifact should not duplicate the package icon under assets/.");
 
         using Stream entryStream = sbomEntry!.Open();
         using JsonDocument sbom = JsonDocument.Parse(entryStream);

@@ -31,7 +31,6 @@
     <None Include="..\..\README.md" Link="README.md" Pack="true" PackagePath="README.md" />
     <None Include="..\..\THIRD-PARTY-NOTICES.md" Link="THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="\" />
     <None Include="..\..\assets\icon.png" Link="icon.png" Pack="true" PackagePath="\" />
-    <None Include="..\..\assets\icon.png" Link="assets\icon.png" Pack="true" PackagePath="assets/" />
     <None Include="..\..\nuget-resolution-guard.schema.json" Link="nuget-resolution-guard.schema.json" Pack="true" PackagePath="contentFiles/any/any/" />
   </ItemGroup>
 
@@ -86,9 +85,6 @@
       </SbomStaticPackageFile>
       <SbomStaticPackageFile Include="..\..\assets\icon.png">
         <TargetRelativePath>icon.png</TargetRelativePath>
-      </SbomStaticPackageFile>
-      <SbomStaticPackageFile Include="..\..\assets\icon.png">
-        <TargetRelativePath>assets/icon.png</TargetRelativePath>
       </SbomStaticPackageFile>
       <SbomStaticPackageFile Include="..\..\nuget-resolution-guard.schema.json">
         <TargetRelativePath>contentFiles/any/any/nuget-resolution-guard.schema.json</TargetRelativePath>
