@@ -125,13 +125,10 @@ jobs:
             is_on_develop=true
           fi
 
-          if [[ "${is_on_main}" == "true" && "${is_on_develop}" == "true" ]]; then
-            echo "Tagged commit ${TAG_COMMIT} is reachable from both main and develop." >&2
-            echo "Tag publishes must target a commit that belongs to exactly one publish branch." >&2
-            exit 1
-          fi
-
           if [[ "${is_on_main}" == "true" ]]; then
+            if [[ "${is_on_develop}" == "true" ]]; then
+              echo "Tagged commit ${TAG_COMMIT} is reachable from both main and develop. Preferring main publish settings."
+            fi
             set_publish_target main
           elif [[ "${is_on_develop}" == "true" ]]; then
             set_publish_target develop

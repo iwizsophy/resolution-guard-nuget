@@ -30,6 +30,7 @@ RunTest("analyzer parse failure reports diagnostic", TestAnalyzerParseFailureRep
 RunTest("included entrypoints narrow nested obj assets enumeration", TestIncludedEntrypointsNarrowNestedObjAssetsEnumeration);
 RunTest("included entrypoints effective empty set skips enumeration", TestIncludedEntrypointsEffectiveEmptySetSkipsEnumeration);
 RunTest("included entrypoints missing project does not widen scan", TestIncludedEntrypointsMissingProjectDoesNotWidenScan);
+RunTest("included entrypoints mixed local and relocated assets", TestIncludedEntrypointsMixedLocalAndRelocatedAssets);
 RunTest("included entrypoints fall back for relocated repo obj assets", TestIncludedEntrypointsFallbackForRelocatedRepositoryObjAssets);
 RunTest("included entrypoints allowlist", TestIncludedEntrypointsAllowlist);
 RunTest("included entrypoints exclude wins", TestIncludedEntrypointsExcludeWins);
@@ -709,6 +710,43 @@ void TestIncludedEntrypointsMissingProjectDoesNotWidenScan()
         Expect(
             !result.Diagnostics.Any(x => x.Contains("Failed to parse", StringComparison.OrdinalIgnoreCase)),
             "A missing included entrypoint should not parse unrelated repository assets.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestIncludedEntrypointsMixedLocalAndRelocatedAssets()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        string appA = WriteProjectAssetsDetailedAtAssetsPathWithOptions(
+            root,
+            "src/AppA/AppA.csproj",
+            "src/AppA/obj/host-validation/net9.0/project.assets.json",
+            includeTargets: true,
+            includeRestoreProjectPath: true,
+            ("Example.Mixed", "1.0.0", true, true));
+        string appB = WriteProjectAssetsDetailedAtAssetsPathWithOptions(
+            root,
+            "src/AppB/AppB.csproj",
+            "obj/shared/AppB/project.assets.json",
+            includeTargets: true,
+            includeRestoreProjectPath: true,
+            ("Example.Mixed", "2.0.0", true, true));
+
+        GuardSettings settings = CreateSettings(
+            root,
+            mode: GuardMode.Error,
+            includedEntrypoints: [appA, appB]);
+
+        GuardAnalysisResult result = ResolutionGuardNuGetAnalyzer.Analyze(settings);
+
+        Expect(result.AssetsFileCount == 2, "Mixed local and relocated entrypoint assets should both be included in analysis.");
+        Expect(result.Mismatches.Count == 1, "Mixed local and relocated entrypoint assets should still detect mismatches.");
+        Expect(result.Diagnostics.Count == 0, "Mixed local and relocated entrypoint assets should not trigger missing-assets diagnostics.");
     }
     finally
     {
