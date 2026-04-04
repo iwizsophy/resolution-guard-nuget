@@ -29,18 +29,20 @@
 - `int.nugettest.org` 側は `audience=https://int.nugettest.org` と `token-service-url=https://int.nugettest.org/api/v2/token` を使います。
 - テスト用 feed は、feed host が `apiint.nugettest.org`、OIDC token host が `int.nugettest.org` で異なります。
 - publish 前に build を実行します。
+- publish 前の pack に先立ち、workflow は固定 version の Syft を導入します。
 - publish 時の pack step では、生成された build output による version の意図しない繰り上がりを防ぐため、`RelaxVersioner` の working-directory dirty check を無効化します。
 - upload 前に、生成された `.nupkg` のファイル名が release tag の version と一致することを検証します。
+- push 前に、生成された package に `sbom/ResolutionGuard.NuGet.spdx.json` が同梱されていることを検証します。
 
 ## 安定版 release フロー
 
-`v1.3.0` のような nuget.org 向け安定版 release では、次の順で進めてください。
+`v1.4.0` のような nuget.org 向け安定版 release では、次の順で進めてください。
 
 1. 対象 release 内容が `develop` に取り込まれていることを確認します。
 2. `CHANGELOG.md` の `Unreleased` から対象 version section へ release-visible な内容を移します。
 3. README の install 例を release version に更新します。
 4. `develop` から `main` への release PR を作成してマージします。
-5. `main` の merge commit から `git tag v1.3.0` と `git push origin v1.3.0` のように release tag を作成して push します。
+5. `main` の merge commit から `git tag v1.4.0` と `git push origin v1.4.0` のように release tag を作成して push します。
 6. publish workflow が tag から version を解決し、nuget.org を publish 先として選んでいることを確認します。
 
 ## Release チェックリスト

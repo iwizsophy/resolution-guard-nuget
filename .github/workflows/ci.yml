@@ -82,8 +82,49 @@ jobs:
       - name: Restore
         run: dotnet restore ResolutionGuard.NuGet.slnx
 
+      - name: Install Syft
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="v1.42.3"
+          archive="syft_${version#v}_linux_amd64.tar.gz"
+          mkdir -p "${HOME}/.local/bin"
+          curl -sSfL "https://github.com/anchore/syft/releases/download/${version}/${archive}" \
+            | tar -xz -C "${RUNNER_TEMP}" syft
+          install "${RUNNER_TEMP}/syft" "${HOME}/.local/bin/syft"
+          echo "${HOME}/.local/bin" >> "${GITHUB_PATH}"
+
       - name: Pack
         run: dotnet pack src/ResolutionGuard.NuGet.Package/ResolutionGuard.NuGet.Package.csproj -c Release --no-restore -o artifacts
+
+      - name: Verify packaged SBOM
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_path="$(find artifacts -maxdepth 1 -name 'ResolutionGuard.NuGet.*.nupkg' | head -n 1)"
+          if [[ -z "${package_path}" ]]; then
+            echo "Packed NuGet artifact not found." >&2
+            exit 1
+          fi
+
+          python - "${package_path}" <<'PY'
+          import json
+          import sys
+          import zipfile
+
+          package_path = sys.argv[1]
+          entry_name = "sbom/ResolutionGuard.NuGet.spdx.json"
+
+          with zipfile.ZipFile(package_path) as archive:
+              if entry_name not in archive.namelist():
+                  raise SystemExit(f"Missing bundled SBOM entry: {entry_name}")
+
+              with archive.open(entry_name) as sbom_file:
+                  sbom = json.load(sbom_file)
+
+          if not sbom.get("SPDXID"):
+              raise SystemExit("Bundled SBOM is missing SPDXID metadata.")
+          PY
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v7

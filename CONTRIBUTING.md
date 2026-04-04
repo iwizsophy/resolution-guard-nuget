@@ -28,6 +28,7 @@ Thanks for your interest in contributing to ResolutionGuard.NuGet.
    - `dotnet run --project tests/ResolutionGuard.NuGet.Tests -c Release --framework net9.0 --no-build`
    - `dotnet run --project tests/ResolutionGuard.NuGet.Tests -c Release --framework net10.0 --no-build`
    - `dotnet pack src/ResolutionGuard.NuGet.Package/ResolutionGuard.NuGet.Package.csproj -c Release --no-build -o artifacts`
+   - The `dotnet pack` check expects `syft` on `PATH` because pack now generates and bundles a SPDX SBOM.
 5. Submit a pull request with:
    - What changed
    - Why it changed

@@ -28,6 +28,7 @@ ResolutionGuard.NuGet への貢献を歓迎します。
    - `dotnet run --project tests/ResolutionGuard.NuGet.Tests -c Release --framework net9.0 --no-build`
    - `dotnet run --project tests/ResolutionGuard.NuGet.Tests -c Release --framework net10.0 --no-build`
    - `dotnet pack src/ResolutionGuard.NuGet.Package/ResolutionGuard.NuGet.Package.csproj -c Release --no-build -o artifacts`
+   - `dotnet pack` の検証では、pack 時に SPDX SBOM を生成して同梱するため、`syft` が `PATH` 上にある必要があります。
 5. Pull Request には以下を記載してください:
    - 変更内容
    - 変更理由

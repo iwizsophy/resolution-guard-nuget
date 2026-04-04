@@ -2,6 +2,7 @@ using Microsoft.Build.Framework;
 using ResolutionGuard.NuGet.Core;
 using ResolutionGuard.NuGet.Tasks;
 using System.Diagnostics;
+using System.IO.Compression;
 using System.Text.Json;
 using System.Xml.Linq;
 
@@ -22,6 +23,7 @@ RunTest("task solution scope warns when projects are unrestored", TestTaskSoluti
 RunTest("msbuild integration uses solution path default", TestMsBuildIntegrationUsesSolutionPathDefault);
 RunTest("msbuild integration included entrypoints override", TestMsBuildIntegrationIncludedEntrypointsOverride);
 RunTest("msbuild integration emits success message when enabled", TestMsBuildIntegrationEmitsSuccessMessageWhenEnabled);
+RunTest("pack bundles sbom", TestPackBundlesSbom);
 RunTest("analyzer disabled returns empty", TestAnalyzerDisabledReturnsEmpty);
 RunTest("analyzer missing repository root reports diagnostic", TestAnalyzerMissingRepositoryRootReportsDiagnostic);
 RunTest("analyzer parse failure reports diagnostic", TestAnalyzerParseFailureReportsDiagnostic);
@@ -467,6 +469,49 @@ void TestMsBuildIntegrationEmitsSuccessMessageWhenEnabled()
         Expect(
             result.Output.Contains("no mismatch found", StringComparison.OrdinalIgnoreCase),
             $"Build output should include the success message when ResolutionGuardNuGetEmitSuccessMessage=true.{Environment.NewLine}{result.Output}");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestPackBundlesSbom()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        string repositoryRoot = FindRepositoryRootForTests();
+        string packageProjectPath = Path.Combine(repositoryRoot, "src", "ResolutionGuard.NuGet.Package", "ResolutionGuard.NuGet.Package.csproj");
+        string outputDirectory = Path.Combine(root, "artifacts");
+        string syftCommandPath = CreateFakeSyftCommand(root);
+
+        CommandResult result = RunDotNet(
+            $"pack \"{packageProjectPath}\" -c Release --no-restore -o \"{outputDirectory}\" -p:RelaxVersionerCheckWorkingDirectoryStatus=false -p:ResolutionGuardNuGetPackageSbomSyftCommand=\"{syftCommandPath}\" --nologo -v:minimal",
+            repositoryRoot);
+
+        Expect(
+            result.Succeeded,
+            $"Packing the package project with a fake Syft command should succeed.{Environment.NewLine}{result.Output}");
+
+        string[] packages = Directory.GetFiles(outputDirectory, "ResolutionGuard.NuGet.*.nupkg");
+        Expect(packages.Length == 1, "Expected exactly one packed NuGet artifact.");
+
+        using ZipArchive package = ZipFile.OpenRead(packages[0]);
+        ZipArchiveEntry? sbomEntry = package.GetEntry("sbom/ResolutionGuard.NuGet.spdx.json");
+        Expect(sbomEntry is not null, "The packed NuGet artifact should bundle the generated SPDX SBOM.");
+
+        using Stream entryStream = sbomEntry!.Open();
+        using JsonDocument sbom = JsonDocument.Parse(entryStream);
+
+        Expect(
+            sbom.RootElement.TryGetProperty("SPDXID", out JsonElement spdxId)
+            && string.Equals(spdxId.GetString(), "SPDXRef-DOCUMENT", StringComparison.Ordinal),
+            "The bundled SBOM should contain a document SPDXID.");
+        Expect(
+            sbom.RootElement.TryGetProperty("name", out JsonElement sourceName)
+            && string.Equals(sourceName.GetString(), "ResolutionGuard.NuGet", StringComparison.Ordinal),
+            "The bundled SBOM should preserve the package source name.");
     }
     finally
     {
@@ -2462,6 +2507,94 @@ string CreateTempRoot()
     string root = Path.Combine(Path.GetTempPath(), "ResolutionGuard.NuGet.Tests", Guid.NewGuid().ToString("N"));
     Directory.CreateDirectory(root);
     return Normalize(root);
+}
+
+string CreateFakeSyftCommand(string root)
+{
+    string commandPath = Path.Combine(root, OperatingSystem.IsWindows() ? "fake-syft.cmd" : "fake-syft.sh");
+
+    if (OperatingSystem.IsWindows())
+    {
+        File.WriteAllText(
+            commandPath,
+            """
+            @echo off
+            setlocal EnableExtensions EnableDelayedExpansion
+            set "output="
+            set "sourceName="
+            :parse
+            if "%~1"=="" goto write
+            if /I "%~1"=="-o" set "output=%~2"
+            if /I "%~1"=="--source-name" set "sourceName=%~2"
+            shift
+            goto parse
+            :write
+            if not defined output exit /b 1
+            if /I "!output:~0,10!"=="spdx-json=" set "output=!output:~10!"
+            for %%I in ("%output%") do if not exist "%%~dpI" mkdir "%%~dpI"
+            >"%output%" (
+              echo {
+              echo   "spdxVersion": "SPDX-2.3",
+              echo   "SPDXID": "SPDXRef-DOCUMENT",
+              echo   "name": "!sourceName!",
+              echo   "documentNamespace": "https://example.invalid/!sourceName!"
+              echo }
+            )
+            """);
+        return commandPath;
+    }
+
+    string scriptContents =
+        """
+        #!/bin/sh
+        set -eu
+        output=""
+        source_name=""
+        while [ "$#" -gt 0 ]; do
+          case "$1" in
+            -o)
+              output="${2#spdx-json=}"
+              shift 2
+              ;;
+            --source-name)
+              source_name="$2"
+              shift 2
+              ;;
+            *)
+              shift
+              ;;
+          esac
+        done
+        if [ -z "$output" ]; then
+          exit 1
+        fi
+        mkdir -p "$(dirname "$output")"
+        cat >"$output" <<EOF
+        {
+          "spdxVersion": "SPDX-2.3",
+          "SPDXID": "SPDXRef-DOCUMENT",
+          "name": "$source_name",
+          "documentNamespace": "https://example.invalid/$source_name"
+        }
+        EOF
+        """;
+
+    File.WriteAllText(commandPath, scriptContents);
+
+    if (!OperatingSystem.IsWindows())
+    {
+        File.SetUnixFileMode(
+            commandPath,
+            UnixFileMode.UserRead
+            | UnixFileMode.UserWrite
+            | UnixFileMode.UserExecute
+            | UnixFileMode.GroupRead
+            | UnixFileMode.GroupExecute
+            | UnixFileMode.OtherRead
+            | UnixFileMode.OtherExecute);
+    }
+
+    return commandPath;
 }
 
 string Normalize(string path)

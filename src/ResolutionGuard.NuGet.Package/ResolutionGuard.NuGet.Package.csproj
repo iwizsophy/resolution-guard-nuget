@@ -16,6 +16,10 @@
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>https://github.com/iwizsophy/resolution-guard-nuget</RepositoryUrl>
     <NoWarn>$(NoWarn);NU5128;NU5100</NoWarn>
+    <ResolutionGuardNuGetPackageSbomSyftCommand Condition="'$(ResolutionGuardNuGetPackageSbomSyftCommand)' == ''">syft</ResolutionGuardNuGetPackageSbomSyftCommand>
+    <ResolutionGuardNuGetPackageSbomStageDirectory>$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)$(Configuration)\$(TargetFramework)\sbom-stage/</ResolutionGuardNuGetPackageSbomStageDirectory>
+    <ResolutionGuardNuGetPackageSbomOutputDirectory>$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)$(Configuration)\$(TargetFramework)\sbom/</ResolutionGuardNuGetPackageSbomOutputDirectory>
+    <ResolutionGuardNuGetPackageSbomOutputPath>$(ResolutionGuardNuGetPackageSbomOutputDirectory)$(PackageId).spdx.json</ResolutionGuardNuGetPackageSbomOutputPath>
   </PropertyGroup>
 
   <ItemGroup>
@@ -25,12 +29,13 @@
     <None Include="buildTransitive\ResolutionGuard.NuGet.targets" Pack="true" PackagePath="buildTransitive/" />
 
     <None Include="..\..\README.md" Link="README.md" Pack="true" PackagePath="README.md" />
+    <None Include="..\..\THIRD-PARTY-NOTICES.md" Link="THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="\" />
     <None Include="..\..\assets\icon.png" Link="icon.png" Pack="true" PackagePath="\" />
     <None Include="..\..\assets\icon.png" Link="assets\icon.png" Pack="true" PackagePath="assets/" />
     <None Include="..\..\nuget-resolution-guard.schema.json" Link="nuget-resolution-guard.schema.json" Pack="true" PackagePath="contentFiles/any/any/" />
   </ItemGroup>
 
-  <Target Name="BuildTaskProject" BeforeTargets="AddTaskAssembliesToPackage">
+  <Target Name="BuildTaskProject" BeforeTargets="AddTaskAssembliesToPackage" Condition="'$(NoBuild)' != 'true'">
     <MSBuild
       Projects="..\ResolutionGuard.NuGet.Tasks\ResolutionGuard.NuGet.Tasks.csproj"
       Targets="Build"
@@ -54,7 +59,67 @@
     </ItemGroup>
   </Target>
 
+  <Target Name="GeneratePackageSbom" DependsOnTargets="AddTaskAssembliesToPackage">
+    <RemoveDir Directories="$(ResolutionGuardNuGetPackageSbomStageDirectory)" Condition="Exists('$(ResolutionGuardNuGetPackageSbomStageDirectory)')" />
+    <Delete Files="$(ResolutionGuardNuGetPackageSbomOutputPath)" Condition="Exists('$(ResolutionGuardNuGetPackageSbomOutputPath)')" />
+    <MakeDir Directories="$(ResolutionGuardNuGetPackageSbomStageDirectory)" />
+    <MakeDir Directories="$(ResolutionGuardNuGetPackageSbomOutputDirectory)" />
+
+    <ItemGroup>
+      <SbomStaticPackageFile Include="build\ResolutionGuard.NuGet.props">
+        <TargetRelativePath>build/ResolutionGuard.NuGet.props</TargetRelativePath>
+      </SbomStaticPackageFile>
+      <SbomStaticPackageFile Include="build\ResolutionGuard.NuGet.targets">
+        <TargetRelativePath>build/ResolutionGuard.NuGet.targets</TargetRelativePath>
+      </SbomStaticPackageFile>
+      <SbomStaticPackageFile Include="buildTransitive\ResolutionGuard.NuGet.props">
+        <TargetRelativePath>buildTransitive/ResolutionGuard.NuGet.props</TargetRelativePath>
+      </SbomStaticPackageFile>
+      <SbomStaticPackageFile Include="buildTransitive\ResolutionGuard.NuGet.targets">
+        <TargetRelativePath>buildTransitive/ResolutionGuard.NuGet.targets</TargetRelativePath>
+      </SbomStaticPackageFile>
+      <SbomStaticPackageFile Include="..\..\README.md">
+        <TargetRelativePath>README.md</TargetRelativePath>
+      </SbomStaticPackageFile>
+      <SbomStaticPackageFile Include="..\..\THIRD-PARTY-NOTICES.md">
+        <TargetRelativePath>THIRD-PARTY-NOTICES.md</TargetRelativePath>
+      </SbomStaticPackageFile>
+      <SbomStaticPackageFile Include="..\..\assets\icon.png">
+        <TargetRelativePath>icon.png</TargetRelativePath>
+      </SbomStaticPackageFile>
+      <SbomStaticPackageFile Include="..\..\assets\icon.png">
+        <TargetRelativePath>assets/icon.png</TargetRelativePath>
+      </SbomStaticPackageFile>
+      <SbomStaticPackageFile Include="..\..\nuget-resolution-guard.schema.json">
+        <TargetRelativePath>contentFiles/any/any/nuget-resolution-guard.schema.json</TargetRelativePath>
+      </SbomStaticPackageFile>
+      <SbomTaskPackageFile Include="@(TfmSpecificPackageFile)">
+        <TargetRelativePath>%(PackagePath)%(Filename)%(Extension)</TargetRelativePath>
+      </SbomTaskPackageFile>
+    </ItemGroup>
+
+    <Copy
+      SourceFiles="@(SbomStaticPackageFile)"
+      DestinationFiles="@(SbomStaticPackageFile->'$(ResolutionGuardNuGetPackageSbomStageDirectory)%(TargetRelativePath)')"
+      SkipUnchangedFiles="true" />
+
+    <Copy
+      SourceFiles="@(SbomTaskPackageFile)"
+      DestinationFiles="@(SbomTaskPackageFile->'$(ResolutionGuardNuGetPackageSbomStageDirectory)%(TargetRelativePath)')"
+      SkipUnchangedFiles="true" />
+
+    <Exec
+      Command="&quot;$(ResolutionGuardNuGetPackageSbomSyftCommand)&quot; --from dir &quot;$(ResolutionGuardNuGetPackageSbomStageDirectory)&quot; --source-name &quot;$(PackageId)&quot; --source-version &quot;$(PackageVersion)&quot; -o &quot;spdx-json=$(ResolutionGuardNuGetPackageSbomOutputPath)&quot;"
+      WorkingDirectory="$(MSBuildProjectDirectory)" />
+
+    <ItemGroup>
+      <TfmSpecificPackageFile Include="$(ResolutionGuardNuGetPackageSbomOutputPath)">
+        <PackagePath>sbom/</PackagePath>
+      </TfmSpecificPackageFile>
+    </ItemGroup>
+  </Target>
+
   <PropertyGroup>
-    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);AddTaskAssembliesToPackage</TargetsForTfmSpecificContentInPackage>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);AddTaskAssembliesToPackage;GeneratePackageSbom</TargetsForTfmSpecificContentInPackage>
   </PropertyGroup>
 </Project>

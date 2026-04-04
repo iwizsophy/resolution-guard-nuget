@@ -40,6 +40,10 @@ dotnet run --project tests/ResolutionGuard.NuGet.Tests -c Release --framework ne
 dotnet pack src/ResolutionGuard.NuGet.Package/ResolutionGuard.NuGet.Package.csproj -c Release --no-restore -o artifacts
 ```
 
+Local pack expects `syft` to be available on `PATH`.
+
+The package project generates a SPDX JSON SBOM during pack and bundles it as `sbom/ResolutionGuard.NuGet.spdx.json` inside the resulting `.nupkg`.
+
 ## Project layout
 
 - `src/ResolutionGuard.NuGet.Core`: analysis and config resolution logic
