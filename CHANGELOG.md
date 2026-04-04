@@ -12,7 +12,7 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 
 ### Changed
 
-- _None_
+- Develop-tag publishes now skip `CHANGELOG.md` release-note extraction and GitHub Release creation; those checks run only for `main` publishes.
 
 ### Fixed
 

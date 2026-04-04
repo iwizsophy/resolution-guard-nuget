@@ -33,9 +33,8 @@ Use NuGet Trusted Publishing with GitHub Actions and OpenID Connect instead of l
 - The publish-time pack step disables `RelaxVersioner` working-directory dirty checks so generated build outputs do not silently bump the package version.
 - The workflow verifies that the generated `.nupkg` filename matches the release tag version before upload.
 - The workflow verifies that the generated package bundles `sbom/ResolutionGuard.NuGet.spdx.json` before push.
-- After a successful package push, the workflow creates or updates the matching GitHub Release from the corresponding `CHANGELOG.md` version section.
-- Tags from `main` create a normal GitHub Release and are marked as latest.
-- Tags from `develop` create a GitHub pre-release so test-feed publishes do not appear as the latest stable release.
+- Tags from `main` extract release notes from the matching `CHANGELOG.md` version section and create or update the corresponding GitHub Release as the latest stable release.
+- Tags from `develop` publish only to `int.nugettest.org`; they do not require a `CHANGELOG.md` release section and do not create or update a GitHub Release.
 
 ## Stable release flow
 
@@ -46,7 +45,7 @@ Use this sequence for a nuget.org release such as `v1.4.0`.
 3. Update the README install snippet to the release version.
 4. Open and merge the release pull request from `develop` to `main`.
 5. Create the release tag from the merge commit on `main`, for example `git tag v1.4.0` followed by `git push origin v1.4.0`.
-6. Confirm that the publish workflow resolves the package version from the tag, targets nuget.org, and publishes the matching GitHub Release notes from `CHANGELOG.md`.
+6. For `main` tags, confirm that the publish workflow resolves the package version from the tag, targets nuget.org, and publishes the matching GitHub Release notes from `CHANGELOG.md`.
 
 ## Release checklist
 

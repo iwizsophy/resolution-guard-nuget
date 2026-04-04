@@ -33,6 +33,8 @@
 - publish 時の pack step では、生成された build output による version の意図しない繰り上がりを防ぐため、`RelaxVersioner` の working-directory dirty check を無効化します。
 - upload 前に、生成された `.nupkg` のファイル名が release tag の version と一致することを検証します。
 - push 前に、生成された package に `sbom/ResolutionGuard.NuGet.spdx.json` が同梱されていることを検証します。
+- `main` からの tag では、workflow は `CHANGELOG.md` の該当 version section から release notes を取り出し、対応する GitHub Release を作成または更新して latest stable release として扱います。
+- `develop` からの tag は `int.nugettest.org` への publish のみを行います。`CHANGELOG.md` の release section は必須ではなく、GitHub Release の作成・更新も行いません。
 
 ## 安定版 release フロー
 
@@ -43,7 +45,7 @@
 3. README の install 例を release version に更新します。
 4. `develop` から `main` への release PR を作成してマージします。
 5. `main` の merge commit から `git tag v1.4.0` と `git push origin v1.4.0` のように release tag を作成して push します。
-6. publish workflow が tag から version を解決し、nuget.org を publish 先として選んでいることを確認します。
+6. `main` tag の場合、publish workflow が tag から version を解決し、nuget.org を publish 先として選び、`CHANGELOG.md` から対応する GitHub Release notes を公開することを確認します。
 
 ## Release チェックリスト
 

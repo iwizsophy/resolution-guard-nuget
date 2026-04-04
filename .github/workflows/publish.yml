@@ -215,7 +215,7 @@ jobs:
           PY
 
       - name: Extract release notes from changelog
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && steps.publish_settings.outputs.target == 'nuget.org'
         id: release_notes
         shell: bash
         run: |
@@ -252,7 +252,7 @@ jobs:
             --skip-duplicate
 
       - name: Create or update GitHub Release
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && steps.publish_settings.outputs.target == 'nuget.org'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
