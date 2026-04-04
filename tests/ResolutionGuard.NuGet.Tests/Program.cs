@@ -29,6 +29,7 @@ RunTest("analyzer missing repository root reports diagnostic", TestAnalyzerMissi
 RunTest("analyzer parse failure reports diagnostic", TestAnalyzerParseFailureReportsDiagnostic);
 RunTest("included entrypoints narrow nested obj assets enumeration", TestIncludedEntrypointsNarrowNestedObjAssetsEnumeration);
 RunTest("included entrypoints effective empty set skips enumeration", TestIncludedEntrypointsEffectiveEmptySetSkipsEnumeration);
+RunTest("included entrypoints missing project does not widen scan", TestIncludedEntrypointsMissingProjectDoesNotWidenScan);
 RunTest("included entrypoints fall back for relocated repo obj assets", TestIncludedEntrypointsFallbackForRelocatedRepositoryObjAssets);
 RunTest("included entrypoints allowlist", TestIncludedEntrypointsAllowlist);
 RunTest("included entrypoints exclude wins", TestIncludedEntrypointsExcludeWins);
@@ -673,6 +674,41 @@ void TestIncludedEntrypointsEffectiveEmptySetSkipsEnumeration()
         Expect(
             !result.Diagnostics.Any(x => x.Contains("Failed to parse", StringComparison.OrdinalIgnoreCase)),
             "An effective empty entrypoint set should not parse out-of-scope assets.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestIncludedEntrypointsMissingProjectDoesNotWidenScan()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        string appA = WriteProjectAssetsDetailedAtAssetsPathWithOptions(
+            root,
+            "src/AppA/AppA.csproj",
+            "src/AppA/obj/host-validation/net9.0/project.assets.json",
+            includeTargets: true,
+            includeRestoreProjectPath: true,
+            ("Example.Allow", "1.0.0", true, true));
+        string appB = EnsureProjectFile(root, "src/AppB/AppB.csproj");
+        string unrelatedAssets = Path.Combine(root, "src", "AppC", "obj", "project.assets.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(unrelatedAssets) ?? root);
+        File.WriteAllText(unrelatedAssets, "{ invalid json");
+
+        GuardSettings settings = CreateSettings(
+            root,
+            mode: GuardMode.Error,
+            includedEntrypoints: [appA, appB]);
+
+        GuardAnalysisResult result = ResolutionGuardNuGetAnalyzer.Analyze(settings);
+
+        Expect(result.AssetsFileCount == 1, "A missing included entrypoint should not widen analysis back to repository-wide assets discovery.");
+        Expect(
+            !result.Diagnostics.Any(x => x.Contains("Failed to parse", StringComparison.OrdinalIgnoreCase)),
+            "A missing included entrypoint should not parse unrelated repository assets.");
     }
     finally
     {

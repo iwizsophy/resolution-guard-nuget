@@ -17,8 +17,8 @@
     <RepositoryUrl>https://github.com/iwizsophy/resolution-guard-nuget</RepositoryUrl>
     <NoWarn>$(NoWarn);NU5128;NU5100</NoWarn>
     <ResolutionGuardNuGetPackageSbomSyftCommand Condition="'$(ResolutionGuardNuGetPackageSbomSyftCommand)' == ''">syft</ResolutionGuardNuGetPackageSbomSyftCommand>
-    <ResolutionGuardNuGetPackageSbomStageDirectory>$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)$(Configuration)\$(TargetFramework)\sbom-stage/</ResolutionGuardNuGetPackageSbomStageDirectory>
-    <ResolutionGuardNuGetPackageSbomOutputDirectory>$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)$(Configuration)\$(TargetFramework)\sbom/</ResolutionGuardNuGetPackageSbomOutputDirectory>
+    <ResolutionGuardNuGetPackageSbomStageDirectory>$(MSBuildProjectDirectory)/$(BaseIntermediateOutputPath)$(Configuration)/$(TargetFramework)/sbom-stage/</ResolutionGuardNuGetPackageSbomStageDirectory>
+    <ResolutionGuardNuGetPackageSbomOutputDirectory>$(MSBuildProjectDirectory)/$(BaseIntermediateOutputPath)$(Configuration)/$(TargetFramework)/sbom/</ResolutionGuardNuGetPackageSbomOutputDirectory>
     <ResolutionGuardNuGetPackageSbomOutputPath>$(ResolutionGuardNuGetPackageSbomOutputDirectory)$(PackageId).spdx.json</ResolutionGuardNuGetPackageSbomOutputPath>
   </PropertyGroup>
 
