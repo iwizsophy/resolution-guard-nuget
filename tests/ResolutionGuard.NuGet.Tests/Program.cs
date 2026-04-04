@@ -487,7 +487,7 @@ void TestPackBundlesSbom()
         string syftCommandPath = CreateFakeSyftCommand(root);
 
         CommandResult result = RunDotNet(
-            $"pack \"{packageProjectPath}\" -c Release --no-restore -o \"{outputDirectory}\" -p:RelaxVersionerCheckWorkingDirectoryStatus=false -p:ResolutionGuardNuGetPackageSbomSyftCommand=\"{syftCommandPath}\" --nologo -v:minimal",
+            $"pack \"{packageProjectPath}\" -c Release --restore -o \"{outputDirectory}\" -p:RelaxVersionerCheckWorkingDirectoryStatus=false -p:ResolutionGuardNuGetPackageSbomSyftCommand=\"{syftCommandPath}\" --nologo -v:minimal",
             repositoryRoot);
 
         Expect(
