@@ -46,7 +46,7 @@ Common SDK-style project types such as `.csproj`, `.fsproj`, and `.vbproj` are w
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="ResolutionGuard.NuGet" Version="1.3.0" PrivateAssets="all" />
+  <PackageReference Include="ResolutionGuard.NuGet" Version="1.4.0" PrivateAssets="all" />
 </ItemGroup>
 ```
 
@@ -75,7 +75,7 @@ You can override with MSBuild property:
 Recommended editor integration:
 
 - Add `$schema` to the config file and point it at the published schema URL: `https://raw.githubusercontent.com/iwizsophy/resolution-guard-nuget/main/nuget-resolution-guard.schema.json`
-- The NuGet package also carries a copy of `nuget-resolution-guard.schema.json` for packaging completeness and offline inspection, but the published URL is the canonical editor-integration entrypoint.
+- The NuGet package also carries copies of `nuget-resolution-guard.schema.json` and `sbom/ResolutionGuard.NuGet.spdx.json` for packaging completeness and offline inspection, but the published schema URL remains the canonical editor-integration entrypoint.
 
 Example:
 

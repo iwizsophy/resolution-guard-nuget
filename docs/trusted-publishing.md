@@ -29,21 +29,23 @@ Use NuGet Trusted Publishing with GitHub Actions and OpenID Connect instead of l
 - `int.nugettest.org` uses `audience=https://int.nugettest.org` and `token-service-url=https://int.nugettest.org/api/v2/token`.
 - The feed host (`apiint.nugettest.org`) and OIDC token host (`int.nugettest.org`) differ for the test feed.
 - Build runs before publish-time pack.
+- The workflow installs pinned Syft tooling before publish-time pack.
 - The publish-time pack step disables `RelaxVersioner` working-directory dirty checks so generated build outputs do not silently bump the package version.
 - The workflow verifies that the generated `.nupkg` filename matches the release tag version before upload.
+- The workflow verifies that the generated package bundles `sbom/ResolutionGuard.NuGet.spdx.json` before push.
 - After a successful package push, the workflow creates or updates the matching GitHub Release from the corresponding `CHANGELOG.md` version section.
 - Tags from `main` create a normal GitHub Release and are marked as latest.
 - Tags from `develop` create a GitHub pre-release so test-feed publishes do not appear as the latest stable release.
 
 ## Stable release flow
 
-Use this sequence for a nuget.org release such as `v1.3.0`.
+Use this sequence for a nuget.org release such as `v1.4.0`.
 
 1. Ensure the intended release content is merged into `develop`.
 2. Move release-visible notes from `Unreleased` to the concrete version section in `CHANGELOG.md`.
 3. Update the README install snippet to the release version.
 4. Open and merge the release pull request from `develop` to `main`.
-5. Create the release tag from the merge commit on `main`, for example `git tag v1.3.0` followed by `git push origin v1.3.0`.
+5. Create the release tag from the merge commit on `main`, for example `git tag v1.4.0` followed by `git push origin v1.4.0`.
 6. Confirm that the publish workflow resolves the package version from the tag, targets nuget.org, and publishes the matching GitHub Release notes from `CHANGELOG.md`.
 
 ## Release checklist

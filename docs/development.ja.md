@@ -40,6 +40,10 @@ dotnet run --project tests/ResolutionGuard.NuGet.Tests -c Release --framework ne
 dotnet pack src/ResolutionGuard.NuGet.Package/ResolutionGuard.NuGet.Package.csproj -c Release --no-restore -o artifacts
 ```
 
+ローカルで pack する場合は、`syft` が `PATH` 上にあることを前提とします。
+
+package project は pack 中に SPDX JSON SBOM を生成し、生成された `.nupkg` へ `sbom/ResolutionGuard.NuGet.spdx.json` として同梱します。
+
 ## プロジェクト構成
 
 - `src/ResolutionGuard.NuGet.Core`: 解析・設定解決ロジック

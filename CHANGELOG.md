@@ -22,6 +22,25 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 
 - _None_
 
+## [1.4.0] - Released
+
+### Added
+
+- Packed NuGet artifacts now include a Syft-generated SPDX SBOM at `sbom/ResolutionGuard.NuGet.spdx.json`.
+
+### Changed
+
+- Packed NuGet artifacts now include `THIRD-PARTY-NOTICES.md` so the
+  distributed package carries the repository's third-party notice inventory.
+
+### Fixed
+
+- _None_
+
+### Removed
+
+- _None_
+
 ## [1.3.0] - Released
 
 ### Added
@@ -107,3 +126,4 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 [1.0.0]: https://github.com/iwizsophy/resolution-guard-nuget/releases/tag/v1.0.0
 [1.2.0]: https://github.com/iwizsophy/resolution-guard-nuget/releases/tag/v1.2.0
 [1.3.0]: https://github.com/iwizsophy/resolution-guard-nuget/releases/tag/v1.3.0
+[1.4.0]: https://github.com/iwizsophy/resolution-guard-nuget/releases/tag/v1.4.0
