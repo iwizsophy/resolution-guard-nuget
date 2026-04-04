@@ -61,9 +61,13 @@ jobs:
           set -euo pipefail
           version="v1.42.3"
           archive="syft_${version#v}_linux_amd64.tar.gz"
+          expected_sha256="0d6be741479eddd2c8644a288990c04f3df0d609bbc1599a005532a9dff63509"
+          archive_path="${RUNNER_TEMP}/${archive}"
           mkdir -p "${HOME}/.local/bin"
           curl -sSfL "https://github.com/anchore/syft/releases/download/${version}/${archive}" \
-            | tar -xz -C "${RUNNER_TEMP}" syft
+            -o "${archive_path}"
+          printf '%s  %s\n' "${expected_sha256}" "${archive_path}" | sha256sum --check --
+          tar -xzf "${archive_path}" -C "${RUNNER_TEMP}" syft
           install "${RUNNER_TEMP}/syft" "${HOME}/.local/bin/syft"
           echo "${HOME}/.local/bin" >> "${GITHUB_PATH}"
 

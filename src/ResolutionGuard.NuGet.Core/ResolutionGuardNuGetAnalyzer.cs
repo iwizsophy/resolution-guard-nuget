@@ -214,10 +214,15 @@ public static class ResolutionGuardNuGetAnalyzer
             List<string> entrypointAssetsFiles = EnumerateEntrypointAssetsFiles(entrypoint);
             if (entrypointAssetsFiles.Count == 0)
             {
-                return EnumerateRepositoryAssetsFiles(settings.RepositoryRoot);
+                continue;
             }
 
             localAssetsFiles.AddRange(entrypointAssetsFiles);
+        }
+
+        if (localAssetsFiles.Count == 0)
+        {
+            return EnumerateRepositoryRootObjAssetsFiles(settings.RepositoryRoot);
         }
 
         return [.. localAssetsFiles
@@ -230,6 +235,20 @@ public static class ResolutionGuardNuGetAnalyzer
         return [.. Directory
             .EnumerateFiles(repositoryRoot, "project.assets.json", SearchOption.AllDirectories)
             .Where(IsObjAssetsPath)];
+    }
+
+    private static List<string> EnumerateRepositoryRootObjAssetsFiles(string repositoryRoot)
+    {
+        string repositoryObjDirectory = System.IO.Path.Combine(repositoryRoot, "obj");
+        if (!Directory.Exists(repositoryObjDirectory))
+        {
+            return [];
+        }
+
+        return [.. Directory
+            .EnumerateFiles(repositoryObjDirectory, "project.assets.json", SearchOption.AllDirectories)
+            .Where(IsObjAssetsPath)
+            .OrderBy(path => path, GuardPathComparer.StringComparer)];
     }
 
     private static List<string> EnumerateEntrypointAssetsFiles(string projectPath)
