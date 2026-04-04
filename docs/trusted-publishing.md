@@ -47,6 +47,16 @@ Use this sequence for a nuget.org release such as `v1.4.0`.
 5. Create the release tag from the merge commit on `main`, for example `git tag v1.4.0` followed by `git push origin v1.4.0`.
 6. For `main` tags, confirm that the publish workflow resolves the package version from the tag, targets nuget.org, and publishes the matching GitHub Release notes from `CHANGELOG.md`.
 
+## Post-release develop sync
+
+After a successful `main` release, you can realign `develop` to the released `main` tip with:
+
+```bash
+git checkout develop
+git reset --hard main
+git push GitHub develop --force
+```
+
 ## Release checklist
 
 - `CHANGELOG.md` updated

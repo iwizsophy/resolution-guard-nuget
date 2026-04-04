@@ -47,6 +47,16 @@
 5. `main` の merge commit から `git tag v1.4.0` と `git push origin v1.4.0` のように release tag を作成して push します。
 6. `main` tag の場合、publish workflow が tag から version を解決し、nuget.org を publish 先として選び、`CHANGELOG.md` から対応する GitHub Release notes を公開することを確認します。
 
+## release 後の develop 同期
+
+`main` release 完了後、必要であれば次の 3 行で `develop` を release 済みの `main` 先頭に揃えられます。
+
+```bash
+git checkout develop
+git reset --hard main
+git push GitHub develop --force
+```
+
 ## Release チェックリスト
 
 - `CHANGELOG.md` を更新済み
