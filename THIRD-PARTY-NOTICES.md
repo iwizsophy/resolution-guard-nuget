@@ -29,3 +29,7 @@ Usage note:
 
 - `syft` is used during local/CI package builds to generate the SPDX SBOM bundled in the resulting `.nupkg`.
 - The tool itself is not redistributed as part of this package.
+
+## Trademark Notice
+
+Microsoft, .NET, MSBuild, NuGet, GitHub, Syft, RelaxVersioner, and other third-party names or marks referenced in this repository are the property of their respective owners.

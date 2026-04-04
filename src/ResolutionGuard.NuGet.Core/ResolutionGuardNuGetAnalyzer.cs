@@ -208,21 +208,23 @@ public static class ResolutionGuardNuGetAnalyzer
         }
 
         List<string> localAssetsFiles = [];
+        bool requiresRepositoryRootObjFallback = false;
 
         foreach (string entrypoint in expectedEntrypoints)
         {
             List<string> entrypointAssetsFiles = EnumerateEntrypointAssetsFiles(entrypoint);
             if (entrypointAssetsFiles.Count == 0)
             {
+                requiresRepositoryRootObjFallback = true;
                 continue;
             }
 
             localAssetsFiles.AddRange(entrypointAssetsFiles);
         }
 
-        if (localAssetsFiles.Count == 0)
+        if (requiresRepositoryRootObjFallback)
         {
-            return EnumerateRepositoryRootObjAssetsFiles(settings.RepositoryRoot);
+            localAssetsFiles.AddRange(EnumerateRepositoryRootObjAssetsFiles(settings.RepositoryRoot));
         }
 
         return [.. localAssetsFiles
