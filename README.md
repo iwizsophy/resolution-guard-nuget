@@ -18,7 +18,25 @@ Contributions are welcome, while final decisions remain with the maintainers.
 
 ## Why
 
-NuGet dependency resolution is performed per entry project. A solution can silently resolve different versions of the same package in different startup points, even when NU1605/NU1107 does not fail the build. This package detects that situation after restore.
+NuGet dependency resolution is performed independently for each entry project. Even within the same solution, different startup points can therefore resolve different versions of the same package.
+
+This package came out of work on a large multi-project solution where multiple applications could be built from the same codebase.
+
+After updating references in parent projects, most applications picked up the expected transitive package versions. Some applications, however, were left behind and continued resolving problematic package versions that were still pinned through child projects.
+
+As a result, errors that should already have been fixed started showing up again.
+
+These issues are hard to notice as long as the build still succeeds. They tend to remain latent as "only some applications still use the old dependency graph." Existing NuGet warnings such as `NU1605` and `NU1107` also do not necessarily detect these cross-project resolution mismatches.
+
+In normal Visual Studio workflows, package-version inconsistencies also do not always surface as explicit errors or warnings, so partial update misses often depend on manual verification.
+
+That verification does not scale well in solutions with many projects and multiple entry points.
+
+This tool was created from the need to detect, during build, which versions were actually resolved across projects.
+
+`ResolutionGuard.NuGet` analyzes restored `project.assets.json` files across the repository and reports mismatches in package resolution results between projects.
+
+It does not change NuGet dependency resolution itself. Its purpose is to detect differences based on the fact of what was actually resolved.
 
 ## Security and behavior
 
