@@ -64,7 +64,7 @@ Common SDK-style project types such as `.csproj`, `.fsproj`, and `.vbproj` are w
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="ResolutionGuard.NuGet" Version="1.4.0" PrivateAssets="all" />
+  <PackageReference Include="ResolutionGuard.NuGet" Version="1.5.0" PrivateAssets="all" />
 </ItemGroup>
 ```
 
