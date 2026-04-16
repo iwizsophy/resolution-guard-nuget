@@ -93,7 +93,7 @@ MSBuild プロパティで上書きできます。
 推奨するエディター連携:
 
 - 設定ファイルに `$schema` を追加し、公開スキーマ URL `https://raw.githubusercontent.com/iwizsophy/resolution-guard-nuget/main/nuget-resolution-guard.schema.json` を指定します。
-- NuGet パッケージには `nuget-resolution-guard.schema.json` と `sbom/ResolutionGuard.NuGet.spdx.json` も同梱していますが、これらはパッケージ完全性とオフライン参照のためです。エディター連携の正規入口は公開スキーマ URL とします。
+- NuGet パッケージには `schema/nuget-resolution-guard.schema.json` と `sbom/ResolutionGuard.NuGet.spdx.json` も同梱していますが、これらはパッケージ完全性とオフライン参照のためです。schema は `.nupkg` 内に保持され、利用側プロジェクトへ `contentFiles` のリンクとして露出しません。エディター連携の正規入口は公開スキーマ URL とします。
 
 例:
 

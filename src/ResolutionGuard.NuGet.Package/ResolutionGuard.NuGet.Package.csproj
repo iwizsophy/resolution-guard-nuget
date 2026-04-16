@@ -31,7 +31,7 @@
     <None Include="..\..\README.md" Link="README.md" Pack="true" PackagePath="README.md" />
     <None Include="..\..\THIRD-PARTY-NOTICES.md" Link="THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="\" />
     <None Include="..\..\assets\icon.png" Link="icon.png" Pack="true" PackagePath="\" />
-    <None Include="..\..\nuget-resolution-guard.schema.json" Link="nuget-resolution-guard.schema.json" Pack="true" PackagePath="contentFiles/any/any/" />
+    <None Include="..\..\nuget-resolution-guard.schema.json" Link="nuget-resolution-guard.schema.json" Pack="true" PackagePath="schema/" />
   </ItemGroup>
 
   <Target Name="BuildTaskProject" BeforeTargets="AddTaskAssembliesToPackage" Condition="'$(NoBuild)' != 'true'">
@@ -87,7 +87,7 @@
         <TargetRelativePath>icon.png</TargetRelativePath>
       </SbomStaticPackageFile>
       <SbomStaticPackageFile Include="..\..\nuget-resolution-guard.schema.json">
-        <TargetRelativePath>contentFiles/any/any/nuget-resolution-guard.schema.json</TargetRelativePath>
+        <TargetRelativePath>schema/nuget-resolution-guard.schema.json</TargetRelativePath>
       </SbomStaticPackageFile>
       <SbomTaskPackageFile Include="@(TfmSpecificPackageFile)">
         <TargetRelativePath>%(PackagePath)%(Filename)%(Extension)</TargetRelativePath>

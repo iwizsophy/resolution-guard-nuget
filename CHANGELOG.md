@@ -16,7 +16,7 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 
 ### Fixed
 
-- _None_
+- Packed NuGet artifacts no longer expose `nuget-resolution-guard.schema.json` to consuming projects as a restore-generated `contentFiles` link; the schema remains bundled in the `.nupkg` for offline inspection.
 
 ### Removed
 

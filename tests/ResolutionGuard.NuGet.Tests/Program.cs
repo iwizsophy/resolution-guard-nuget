@@ -24,6 +24,7 @@ RunTest("msbuild integration uses solution path default", TestMsBuildIntegration
 RunTest("msbuild integration included entrypoints override", TestMsBuildIntegrationIncludedEntrypointsOverride);
 RunTest("msbuild integration emits success message when enabled", TestMsBuildIntegrationEmitsSuccessMessageWhenEnabled);
 RunTest("pack bundles sbom", TestPackBundlesSbom);
+RunTest("packed schema stays inside nupkg without consumer link", TestPackedSchemaStaysInsidePackageWithoutConsumerLink);
 RunTest("analyzer disabled returns empty", TestAnalyzerDisabledReturnsEmpty);
 RunTest("analyzer missing repository root reports diagnostic", TestAnalyzerMissingRepositoryRootReportsDiagnostic);
 RunTest("analyzer parse failure reports diagnostic", TestAnalyzerParseFailureReportsDiagnostic);
@@ -515,6 +516,104 @@ void TestPackBundlesSbom()
             sbom.RootElement.TryGetProperty("name", out JsonElement sourceName)
             && string.Equals(sourceName.GetString(), "ResolutionGuard.NuGet", StringComparison.Ordinal),
             "The bundled SBOM should preserve the package source name.");
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+void TestPackedSchemaStaysInsidePackageWithoutConsumerLink()
+{
+    string root = CreateTempRoot();
+    try
+    {
+        string repositoryRoot = FindRepositoryRootForTests();
+        string packageProjectPath = Path.Combine(repositoryRoot, "src", "ResolutionGuard.NuGet.Package", "ResolutionGuard.NuGet.Package.csproj");
+        string outputDirectory = Path.Combine(root, "artifacts");
+        string syftCommandPath = CreateFakeSyftCommand(root);
+
+        CommandResult packResult = RunDotNet(
+            $"pack \"{packageProjectPath}\" -c Release --restore -o \"{outputDirectory}\" -p:RelaxVersionerCheckWorkingDirectoryStatus=false -p:ResolutionGuardNuGetPackageSbomSyftCommand=\"{syftCommandPath}\" --nologo -v:minimal",
+            repositoryRoot);
+
+        Expect(
+            packResult.Succeeded,
+            $"Packing the package project for schema-link verification should succeed.{Environment.NewLine}{packResult.Output}");
+
+        string[] packages = Directory.GetFiles(outputDirectory, "ResolutionGuard.NuGet.*.nupkg");
+        Expect(packages.Length == 1, "Expected exactly one packed NuGet artifact for schema-link verification.");
+
+        string packageFileName = Path.GetFileNameWithoutExtension(packages[0]);
+        const string packageNamePrefix = "ResolutionGuard.NuGet.";
+        Expect(
+            packageFileName.StartsWith(packageNamePrefix, StringComparison.Ordinal),
+            $"Packed NuGet artifact name should start with '{packageNamePrefix}'.");
+        string packageVersion = packageFileName.Substring(packageNamePrefix.Length);
+
+        using (ZipArchive package = ZipFile.OpenRead(packages[0]))
+        {
+            Expect(
+                package.GetEntry("schema/nuget-resolution-guard.schema.json") is not null,
+                "The packed NuGet artifact should bundle the schema under schema/.");
+            Expect(
+                package.GetEntry("contentFiles/any/any/nuget-resolution-guard.schema.json") is null,
+                "The packed NuGet artifact should not expose the schema as a contentFiles asset.");
+        }
+
+        string consumerRoot = Path.Combine(root, "consumer");
+        Directory.CreateDirectory(consumerRoot);
+        string consumerProjectPath = Path.Combine(consumerRoot, "Consumer.csproj");
+        string nuGetConfigPath = Path.Combine(consumerRoot, "NuGet.Config");
+
+        File.WriteAllText(
+            nuGetConfigPath,
+            $"""
+            <?xml version="1.0" encoding="utf-8"?>
+            <configuration>
+              <packageSources>
+                <clear />
+                <add key="local" value="{EscapeXml(Normalize(outputDirectory))}" />
+              </packageSources>
+            </configuration>
+            """);
+
+        File.WriteAllText(
+            consumerProjectPath,
+            $"""
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <TargetFramework>{CurrentTestTargetFramework}</TargetFramework>
+                <ImplicitUsings>enable</ImplicitUsings>
+                <Nullable>enable</Nullable>
+              </PropertyGroup>
+              <ItemGroup>
+                <PackageReference Include="ResolutionGuard.NuGet" Version="{packageVersion}" PrivateAssets="all" />
+              </ItemGroup>
+            </Project>
+            """);
+
+        CommandResult restoreResult = RunDotNet(
+            $"restore \"{consumerProjectPath}\" --configfile \"{nuGetConfigPath}\" --nologo -v:minimal",
+            consumerRoot);
+
+        Expect(
+            restoreResult.Succeeded,
+            $"Restoring a consumer project against the packed artifact should succeed.{Environment.NewLine}{restoreResult.Output}");
+
+        string restoredNuGetPropsPath = Path.Combine(consumerRoot, "obj", "Consumer.csproj.nuget.g.props");
+        Expect(File.Exists(restoredNuGetPropsPath), "The consumer restore should generate Consumer.csproj.nuget.g.props.");
+
+        string restoredNuGetProps = File.ReadAllText(restoredNuGetPropsPath);
+        Expect(
+            restoredNuGetProps.Contains("resolutionguard.nuget", StringComparison.OrdinalIgnoreCase),
+            "The consumer restore output should reference the packed ResolutionGuard.NuGet package.");
+        Expect(
+            !restoredNuGetProps.Contains("nuget-resolution-guard.schema.json", StringComparison.OrdinalIgnoreCase),
+            "The consumer restore output should not add the bundled schema as a content file.");
+        Expect(
+            !restoredNuGetProps.Contains("<Link>nuget-resolution-guard.schema.json</Link>", StringComparison.Ordinal),
+            "The consumer restore output should not generate a schema link.");
     }
     finally
     {
