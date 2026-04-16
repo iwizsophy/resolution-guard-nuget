@@ -38,13 +38,13 @@ Use NuGet Trusted Publishing with GitHub Actions and OpenID Connect instead of l
 
 ## Stable release flow
 
-Use this sequence for a nuget.org release such as `v1.4.0`.
+Use this sequence for a nuget.org release such as `v1.5.0`.
 
 1. Ensure the intended release content is merged into `develop`.
 2. Move release-visible notes from `Unreleased` to the concrete version section in `CHANGELOG.md`.
 3. Update the README install snippet to the release version.
 4. Open and merge the release pull request from `develop` to `main`.
-5. Create the release tag from the merge commit on `main`, for example `git tag v1.4.0` followed by `git push origin v1.4.0`.
+5. Create the release tag from the merge commit on `main`, for example `git tag v1.5.0` followed by `git push origin v1.5.0`.
 6. For `main` tags, confirm that the publish workflow resolves the package version from the tag, targets nuget.org, and publishes the matching GitHub Release notes from `CHANGELOG.md`.
 
 ## Post-release develop sync

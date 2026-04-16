@@ -12,11 +12,29 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 
 ### Changed
 
-- Develop-tag publishes now skip `CHANGELOG.md` release-note extraction and GitHub Release creation; those checks run only for `main` publishes.
+- _None_
 
 ### Fixed
 
 - _None_
+
+### Removed
+
+- _None_
+
+## [1.5.0] - Released
+
+### Added
+
+- _None_
+
+### Changed
+
+- Develop-tag publishes now skip `CHANGELOG.md` release-note extraction and GitHub Release creation; those checks run only for `main` publishes.
+
+### Fixed
+
+- Packed NuGet artifacts no longer expose `nuget-resolution-guard.schema.json` to consuming projects as a restore-generated `contentFiles` link; the schema remains bundled in the `.nupkg` for offline inspection.
 
 ### Removed
 
@@ -127,3 +145,4 @@ The format is based on Keep a Changelog, and this project follows Semantic Versi
 [1.2.0]: https://github.com/iwizsophy/resolution-guard-nuget/releases/tag/v1.2.0
 [1.3.0]: https://github.com/iwizsophy/resolution-guard-nuget/releases/tag/v1.3.0
 [1.4.0]: https://github.com/iwizsophy/resolution-guard-nuget/releases/tag/v1.4.0
+[1.5.0]: https://github.com/iwizsophy/resolution-guard-nuget/releases/tag/v1.5.0

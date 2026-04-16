@@ -38,13 +38,13 @@
 
 ## 安定版 release フロー
 
-`v1.4.0` のような nuget.org 向け安定版 release では、次の順で進めてください。
+`v1.5.0` のような nuget.org 向け安定版 release では、次の順で進めてください。
 
 1. 対象 release 内容が `develop` に取り込まれていることを確認します。
 2. `CHANGELOG.md` の `Unreleased` から対象 version section へ release-visible な内容を移します。
 3. README の install 例を release version に更新します。
 4. `develop` から `main` への release PR を作成してマージします。
-5. `main` の merge commit から `git tag v1.4.0` と `git push origin v1.4.0` のように release tag を作成して push します。
+5. `main` の merge commit から `git tag v1.5.0` と `git push origin v1.5.0` のように release tag を作成して push します。
 6. `main` tag の場合、publish workflow が tag から version を解決し、nuget.org を publish 先として選び、`CHANGELOG.md` から対応する GitHub Release notes を公開することを確認します。
 
 ## release 後の develop 同期
